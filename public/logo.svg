@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Brand Gradients -->
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+    <linearGradient id="navyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="pulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ef4444" />
+      <stop offset="100%" stop-color="#b91c1c" />
+    </linearGradient>
+    
+    <!-- Shadow Effect for 3D look -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.15" />
+    </filter>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- 1. Emblem Group (Centered at X=250, Y=175) -->
+  <g id="emblem" filter="url(#dropShadow)">
+    <!-- Crescent Green Swoosh at the bottom wrapping around the logo -->
+    <path d="M 140 240 C 200 275, 300 275, 360 235 C 300 250, 200 250, 140 240 Z" fill="url(#greenGrad)" />
+    
+    <!-- Stylized Serif Letter 'R' (Main anchor) -->
+    <!-- Elegantly drawn R in navy blue gradient -->
+    <path d="M 235 110 h 45 c 22 0 38 8 38 27 c 0 16 -12 25 -28 27 c 12 3 20 12 25 28 c 4 14 9 24 15 30 h -12 c -5 -5 -9 -14 -13 -26 c -4 -13 -11 -20 -25 -20 h -10 v 40 h 15 v 6 h -40 v -6 h 10 V 116 h -10 v -6 Z" fill="url(#navyGrad)" />
+
+    <!-- Green leaves sprouting on top of the R -->
+    <g transform="translate(0, 0)">
+      <!-- Stem -->
+      <path d="M 295 110 Q 305 95 315 85" stroke="#15803d" stroke-width="2.5" fill="none" stroke-linecap="round" />
+      <!-- Leaf 1 -->
+      <path d="M 315 85 C 322 70, 342 68, 348 74 C 338 88, 324 92, 315 85 Z" fill="url(#greenGrad)" />
+      <!-- Leaf 2 -->
+      <path d="M 300 95 C 310 82, 328 80, 334 88 C 322 98, 312 98, 300 95 Z" fill="url(#greenGrad)" />
+    </g>
+
+    <!-- Blue Medical Cross on the left with rounded caps -->
+    <g transform="translate(135, 115)">
+      <!-- Horizontal bar of the cross -->
+      <rect x="0" y="18" width="60" height="24" rx="6" fill="url(#blueGrad)" />
+      <!-- Vertical bar of the cross -->
+      <rect x="18" y="0" width="24" height="60" rx="6" fill="url(#blueGrad)" />
+      <!-- Inline details for visual depth -->
+      <rect x="3" y="21" width="54" height="18" rx="4" fill="#ffffff" opacity="0.15" />
+      <rect x="21" y="3" width="18" height="54" rx="4" fill="#ffffff" opacity="0.15" />
+    </g>
+
+    <!-- Glowing Red/White Pulse (Heartbeat) Line cutting across the cross -->
+    <path d="M 120 145 h 32 l 6 -18 l 7 38 l 6 -28 l 5 8 h 34" stroke="#ffffff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 120 145 h 32 l 6 -18 l 7 38 l 6 -28 l 5 8 h 34" stroke="#ef4444" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Stethoscope curving around the cross and R -->
+    <!-- Chestpiece / Diaphragm -->
+    <g transform="translate(230, 215)">
+      <circle cx="0" cy="0" r="12" fill="#475569" stroke="#cbd5e1" stroke-width="1.5" />
+      <circle cx="0" cy="0" r="9" fill="#1e293b" />
+      <circle cx="0" cy="0" r="5" fill="#94a3b8" opacity="0.7" />
+    </g>
+    <!-- Stethoscope tubing -->
+    <path d="M 165 175 C 120 200, 115 235, 155 245 C 195 255, 215 230, 230 215" stroke="#334155" stroke-width="5" fill="none" stroke-linecap="round" />
+    <path d="M 165 175 C 120 200, 115 235, 155 245 C 195 255, 215 230, 230 215" stroke="#64748b" stroke-width="2" fill="none" stroke-linecap="round" />
+
+    <!-- Stylized Human Figures (Family Healthcare) on the right -->
+    <!-- Parent Profile -->
+    <g transform="translate(325, 125)">
+      <circle cx="10" cy="-10" r="8" fill="url(#blueGrad)" />
+      <path d="M 0 15 C 0 5, 8 0, 18 3 C 22 10, 20 25, 15 28 C 8 28, 0 25, 0 15 Z" fill="url(#blueGrad)" />
+    </g>
+    <!-- Child Profile -->
+    <g transform="translate(345, 140)">
+      <circle cx="8" cy="-8" r="6" fill="url(#greenGrad)" />
+      <path d="M 0 10 C 0 2, 6 -1, 14 1 C 17 6, 16 18, 12 20 C 6 20, 0 18, 0 10 Z" fill="url(#greenGrad)" />
+    </g>
+  </g>
+
+  <!-- 2. Brand Name Header ("RAPHAJOY") -->
+  <text x="250" y="340" 
+        text-anchor="middle" 
+        font-family="Georgia, 'Times New Roman', serif" 
+        font-size="46" 
+        font-weight="bold" 
+        letter-spacing="5" 
+        fill="#0f172a" 
+        style="text-transform: uppercase;">
+    Raphajoy
+  </text>
+
+  <!-- 3. Subtitle ("MEDICAL CLINIC") -->
+  <!-- Left accent bar -->
+  <line x1="35" y1="382" x2="145" y2="382" stroke="#0284c7" stroke-width="3" stroke-linecap="round" />
+  <!-- Text -->
+  <text x="250" y="390" 
+        text-anchor="middle" 
+        font-family="'Inter', system-ui, sans-serif" 
+        font-size="23" 
+        font-weight="900" 
+        letter-spacing="7" 
+        fill="#0284c7" 
+        style="text-transform: uppercase;">
+    Medical Clinic
+  </text>
+  <!-- Right accent bar -->
+  <line x1="355" y1="382" x2="465" y2="382" stroke="#0284c7" stroke-width="3" stroke-linecap="round" />
+
+  <!-- 4. Slogan ("Quality Care, Compassionate Service") -->
+  <text x="250" y="425" 
+        text-anchor="middle" 
+        font-family="'Inter', system-ui, sans-serif" 
+        font-size="14" 
+        font-weight="600" 
+        letter-spacing="1.5" 
+        fill="#475569">
+    Quality Care, Compassionate Service
+  </text>
+
+  <!-- 5. Decorative Divider -->
+  <g transform="translate(150, 445)">
+    <line x1="0" y1="0" x2="80" y2="0" stroke="#ef4444" stroke-width="1.5" />
+    <circle cx="100" cy="0" r="4" fill="#ef4444" />
+    <line x1="120" y1="0" x2="200" y2="0" stroke="#ef4444" stroke-width="1.5" />
+  </g>
+
+  <!-- 6. Footer Motto ("Your Health, Our Priority") -->
+  <text x="250" y="470" 
+        text-anchor="middle" 
+        font-family="Georgia, serif" 
+        font-size="15" 
+        font-style="italic" 
+        font-weight="bold" 
+        fill="#dc2626">
+    Your Health, Our Priority
+  </text>
+</svg>

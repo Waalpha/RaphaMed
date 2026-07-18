@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is logged in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Get user data
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    // Check if user is Super Admin (strictly locked to breakthroughcollege03@gmail.com)
+    function isSuperAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().role == 'Super Admin' &&
+        getUserData().email == 'breakthroughcollege03@gmail.com';
+    }
+    
+    // Check if user belongs to the hospital
+    function belongsToHospital(hospitalId) {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (getUserData().role == 'Super Admin' || getUserData().hospitalId == hospitalId);
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hospitals
+    match /hospitals/{hospitalId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Users
+    match /users/{userId} {
+      allow get: if true;
+      allow list: if isSignedIn() && (
+        isSuperAdmin() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().hospitalId == resource.data.hospitalId)
+      );
+      allow create: if isSignedIn(); // Allow sign up/registration
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId || 
+        isSuperAdmin() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == 'Hospital Admin' && getUserData().hospitalId == resource.data.hospitalId)
+      );
+      allow delete: if isSuperAdmin() || (
+        isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        getUserData().role == 'Hospital Admin' && 
+        getUserData().hospitalId == resource.data.hospitalId
+      );
+    }
+
+    // Patients
+    match /patients/{patientId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow create: if isSignedIn() && (isSuperAdmin() || belongsToHospital(request.resource.data.hospitalId));
+      allow update: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+    }
+
+    // Appointments
+    match /appointments/{appointmentId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow create: if isSignedIn() && (isSuperAdmin() || belongsToHospital(request.resource.data.hospitalId));
+      allow update: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+    }
+
+    // Medical Records
+    match /medicalRecords/{recordId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow create: if isSignedIn() && (isSuperAdmin() || belongsToHospital(request.resource.data.hospitalId));
+      allow update: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+    }
+
+    // Billing
+    match /billing/{billingId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow create: if isSignedIn() && (isSuperAdmin() || belongsToHospital(request.resource.data.hospitalId));
+      allow update: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+    }
+
+    // Pharmacy Stock
+    match /pharmacyStock/{stockId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow create: if isSignedIn() && (isSuperAdmin() || belongsToHospital(request.resource.data.hospitalId));
+      allow update: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+    }
+
+    // Ward Beds
+    match /wardBeds/{bedId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow create: if isSignedIn() && (isSuperAdmin() || belongsToHospital(request.resource.data.hospitalId));
+      allow update: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+    }
+
+    // System Settings (Branding & Logo)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+  }
+}

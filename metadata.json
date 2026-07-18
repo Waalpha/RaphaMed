@@ -1,0 +1,6 @@
+{
+  "name": "Raphajoy Medical Clinics",
+  "description": "Hospital Management System (HMS) designed for multiple hospitals to manage doctors, patients, appointments, billing, pharmacy, and reports with complete data separation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

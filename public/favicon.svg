@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <!-- Brand Gradients -->
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+    <linearGradient id="navyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    
+    <!-- Shadow for depth -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.15" />
+    </filter>
+  </defs>
+
+  <!-- Clean, soft circular background white card for perfect contrast in browser dark/light tabs -->
+  <circle cx="50" cy="50" r="48" fill="#ffffff" filter="url(#shadow)" />
+
+  <!-- Simplified Emblem group -->
+  <g transform="translate(1, 0)">
+    <!-- Crescent Green Swoosh at the bottom -->
+    <path d="M 28 73 C 40 80, 60 80, 72 72 C 60 75, 40 75, 28 73 Z" fill="url(#greenGrad)" />
+    
+    <!-- Stylized Serif Letter 'R' -->
+    <path d="M 47 32 h 13 c 6.6 0 11.4 2.4 11.4 8.1 c 0 4.8 -3.6 7.5 -8.4 8.1 c 3.6 0.9 6 3.6 7.5 8.4 c 1.2 4.2 2.7 7.2 4.5 9 h -3.6 c -1.5 -1.5 -2.7 -4.2 -3.9 -7.8 c -1.2 -3.9 -3.3 -6 -7.5 -6 h -3 v 12 h 4.5 v 1.8 h -12 v -1.8 h 3 V 33.8 h -3 v -1.8 Z" fill="url(#navyGrad)" />
+
+    <!-- Green leaves sprouting on top of the R -->
+    <g transform="translate(5, -4)">
+      <path d="M 58 35 Q 61 31 64 28" stroke="#15803d" stroke-width="1" fill="none" />
+      <path d="M 64 28 C 66 23.5, 72 23, 74 25 C 71 29, 67 30, 64 28 Z" fill="url(#greenGrad)" />
+      <path d="M 60 31 C 63 27, 68 26.5, 70 29 C 66 32, 63 32, 60 31 Z" fill="url(#greenGrad)" />
+    </g>
+
+    <!-- Blue Medical Cross on the left -->
+    <g transform="translate(26, 35)">
+      <rect x="0" y="5.4" width="18" height="7.2" rx="1.8" fill="url(#blueGrad)" />
+      <rect x="5.4" y="0" width="7.2" height="18" rx="1.8" fill="url(#blueGrad)" />
+    </g>
+
+    <!-- Red/White Heartbeat (Pulse) line cutting across the cross -->
+    <path d="M 22 44.4 h 9.6 l 1.8 -5.4 l 2.1 11.4 l 1.8 -8.4 l 1.5 2.4 h 10.2" stroke="#ffffff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 22 44.4 h 9.6 l 1.8 -5.4 l 2.1 11.4 l 1.8 -8.4 l 1.5 2.4 h 10.2" stroke="#ef4444" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Stethoscope curving around -->
+    <circle cx="55.5" cy="65.5" r="3.5" fill="#475569" stroke="#cbd5e1" stroke-width="0.5" />
+    <circle cx="55.5" cy="65.5" r="2.5" fill="#1e293b" />
+    <path d="M 35 53 C 21.5 60.5, 20 71, 32 74 C 44 77, 50 69.5, 54.5 65" stroke="#334155" stroke-width="1.8" fill="none" stroke-linecap="round" />
+
+    <!-- Stylized Human Figures on the right -->
+    <g transform="translate(74, 37)">
+      <circle cx="3" cy="-3" r="2.4" fill="url(#blueGrad)" />
+      <path d="M 0 4.5 C 0 1.5, 2.4 0, 5.4 0.9 C 6.6 3, 6 7.5, 4.5 8.4 C 2.4 8.4, 0 7.5, 0 4.5 Z" fill="url(#blueGrad)" />
+    </g>
+    <g transform="translate(80, 42)">
+      <circle cx="2" cy="-2" r="1.8" fill="url(#greenGrad)" />
+      <path d="M 0 3 C 0 0.6, 1.8 -0.3, 4.2 0.3 C 5.1 1.8, 4.8 5.4, 3.6 6 C 1.8 6, 0 5.4, 0 3 Z" fill="url(#greenGrad)" />
+    </g>
+  </g>
+</svg>

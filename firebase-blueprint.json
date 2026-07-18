@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "Hospital": {
+      "title": "Hospital",
+      "description": "Represents a tenant hospital in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "subscription": { "type": "string", "enum": ["Basic", "Standard", "Premium"] },
+        "createdAt": { "type": "string" },
+        "isOnline": { "type": "boolean" }
+      },
+      "required": ["id", "name", "code", "status", "subscription"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Represents a staff member or administrator belonging to a hospital, or a Super Admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": [
+          "Super Admin", "Hospital Admin", "Doctor", "Nurse", "Receptionist", 
+          "Pharmacist", "Laboratory", "Radiology", "Accountant", "Cashier", 
+          "Records Officer"
+        ]},
+        "department": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "Patient": {
+      "title": "Patient",
+      "description": "Represents a registered patient under a hospital tenant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "name": { "type": "string" },
+        "age": { "type": "integer" },
+        "gender": { "type": "string" },
+        "contact": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "insuranceType": { "type": "string", "enum": ["NHIF", "SHIF", "None", "Private"] },
+        "insuranceId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "hospitalId", "name", "age", "gender"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "An appointment booked for a patient at a hospital.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "appointmentDate": { "type": "string" },
+        "timeSlot": { "type": "string" },
+        "status": { "type": "string", "enum": ["Scheduled", "In Progress", "Completed", "Cancelled"] },
+        "symptoms": { "type": "string" },
+        "queueNumber": { "type": "integer" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "hospitalId", "patientId", "patientName", "doctorId", "appointmentDate", "status"]
+    },
+    "MedicalRecord": {
+      "title": "Medical Record",
+      "description": "A comprehensive clinical record for a patient visit.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "date": { "type": "string" },
+        "diagnosis": { "type": "string" },
+        "symptoms": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "hospitalId", "patientId", "doctorId"]
+    },
+    "Billing": {
+      "title": "Billing",
+      "description": "Invoices and transaction status for patients.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "insuranceClaimed": { "type": "number" },
+        "patientPaid": { "type": "number" },
+        "status": { "type": "string", "enum": ["Unpaid", "Partial", "Paid"] },
+        "paymentMethod": { "type": "string" },
+        "invoiceDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "hospitalId", "patientId", "totalAmount", "status"]
+    },
+    "PharmacyStock": {
+      "title": "Pharmacy Stock",
+      "description": "Represents medicine in stock at a hospital pharmacy.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "drugName": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "minQuantity": { "type": "integer" },
+        "unitPrice": { "type": "number" },
+        "expiryDate": { "type": "string" }
+      },
+      "required": ["id", "hospitalId", "drugName", "quantity", "unitPrice"]
+    },
+    "WardBed": {
+      "title": "Ward Bed",
+      "description": "Bed allocation inside a hospital ward.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "hospitalId": { "type": "string" },
+        "wardType": { "type": "string", "enum": ["Maternity", "General", "ICU", "Pediatric"] },
+        "bedNumber": { "type": "string" },
+        "status": { "type": "string", "enum": ["Available", "Occupied"] },
+        "occupiedBy": { "type": "string" },
+        "occupiedByName": { "type": "string" }
+      },
+      "required": ["id", "hospitalId", "wardType", "bedNumber", "status"]
+    }
+  },
+  "firestore": {
+    "hospitals": {
+      "schema": { "$ref": "#/entities/Hospital" },
+      "description": "List of active and suspended tenant hospitals."
+    },
+    "users": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Registered staff members mapped to their hospitalId or Super Admins."
+    },
+    "patients": {
+      "schema": { "$ref": "#/entities/Patient" },
+      "description": "Patients registered at specific tenant hospitals."
+    },
+    "appointments": {
+      "schema": { "$ref": "#/entities/Appointment" },
+      "description": "Tenant-isolated clinical appointments."
+    },
+    "medicalRecords": {
+      "schema": { "$ref": "#/entities/MedicalRecord" },
+      "description": "Clinical histories and patient cases."
+    },
+    "billing": {
+      "schema": { "$ref": "#/entities/Billing" },
+      "description": "Invoices and financial transactions."
+    },
+    "pharmacyStock": {
+      "schema": { "$ref": "#/entities/PharmacyStock" },
+      "description": "Medicine inventory per hospital."
+    },
+    "wardBeds": {
+      "schema": { "$ref": "#/entities/WardBed" },
+      "description": "Beds available/occupied in wards per hospital."
+    }
+  }
+}
