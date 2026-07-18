@@ -46,7 +46,7 @@ import {
 interface SuperAdminDashboardProps {
   currentUser: UserProfile;
   onLogout: () => void;
-  onBrandingUpdate?: (name: string, logo: string) => void;
+  onBrandingUpdate?: (name: string, logo: string, primaryColor?: string) => void;
 }
 
 export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingUpdate }: SuperAdminDashboardProps) {
@@ -100,6 +100,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   // Branding states
   const [systemLogo, setSystemLogo] = useState<string>('/logo.svg');
   const [systemName, setSystemName] = useState<string>('RAPHA JOY MEDICAL CLINICS');
+  const [systemPrimaryColor, setSystemPrimaryColor] = useState<string>('#0f172a');
   const [showBrandingModal, setShowBrandingModal] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -134,6 +135,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       if (settings) {
         if (settings.logo) setSystemLogo(settings.logo);
         if (settings.name) setSystemName(settings.name);
+        if (settings.primaryColor) setSystemPrimaryColor(settings.primaryColor);
       }
     } catch (e) {
       console.error(e);
@@ -309,10 +311,11 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
     try {
       await updateSystemSettings({
         name: systemName,
-        logo: systemLogo
+        logo: systemLogo,
+        primaryColor: systemPrimaryColor
       });
       if (onBrandingUpdate) {
-        onBrandingUpdate(systemName, systemLogo);
+        onBrandingUpdate(systemName, systemLogo, systemPrimaryColor);
       }
       setShowBrandingModal(false);
       showToast('success', 'Branding settings updated successfully!');
@@ -997,6 +1000,47 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                         <p className="text-[10px] text-slate-400">PNG, JPG, or SVG up to 800KB</p>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-2">Primary Brand Color</label>
+                  <div className="flex items-center space-x-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                    <input 
+                      type="color" 
+                      value={systemPrimaryColor} 
+                      onChange={e => setSystemPrimaryColor(e.target.value)}
+                      className="w-8 h-8 rounded cursor-pointer border border-slate-300"
+                    />
+                    <div className="flex-1">
+                      <input 
+                        type="text" 
+                        value={systemPrimaryColor} 
+                        onChange={e => setSystemPrimaryColor(e.target.value)}
+                        className="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-slate-800 bg-white font-mono"
+                        placeholder="#0f172a"
+                      />
+                    </div>
+                  </div>
+                  {/* Preset Colors */}
+                  <div className="flex gap-2 mt-2">
+                    {[
+                      { value: '#0f172a', label: 'Dark Slate' },
+                      { value: '#059669', label: 'Emerald' },
+                      { value: '#4f46e5', label: 'Indigo' },
+                      { value: '#0284c7', label: 'Ocean' },
+                      { value: '#0d9488', label: 'Teal' },
+                      { value: '#dc2626', label: 'Crimson' }
+                    ].map(preset => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() => setSystemPrimaryColor(preset.value)}
+                        className={`w-5 h-5 rounded-full border border-slate-300 relative ${systemPrimaryColor === preset.value ? 'ring-2 ring-slate-800 ring-offset-1' : ''}`}
+                        style={{ backgroundColor: preset.value }}
+                        title={preset.label}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>

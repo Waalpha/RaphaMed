@@ -4,7 +4,9 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  sendPasswordResetEmail 
+  sendPasswordResetEmail,
+  signInWithPopup,
+  GithubAuthProvider
 } from 'firebase/auth';
 import { 
   doc, 
@@ -32,7 +34,8 @@ import {
   LogOut, 
   ExternalLink,
   ChevronRight,
-  Users
+  Users,
+  Github
 } from 'lucide-react';
 
 export default function App() {
@@ -45,6 +48,7 @@ export default function App() {
   // Branding states
   const [systemLogo, setSystemLogo] = useState<string>('/logo.svg');
   const [systemName, setSystemName] = useState<string>('RAPHA JOY MEDICAL CLINICS');
+  const [systemPrimaryColor, setSystemPrimaryColor] = useState<string>('#0f172a');
 
   // Dynamic Hospitals List state
   const [loadedHospitals, setLoadedHospitals] = useState<Hospital[]>([]);
@@ -85,6 +89,7 @@ export default function App() {
         if (settings) {
           if (settings.logo) setSystemLogo(settings.logo);
           if (settings.name) setSystemName(settings.name);
+          if (settings.primaryColor) setSystemPrimaryColor(settings.primaryColor);
         }
       } catch (err) {
         console.error('Error loading branding settings:', err);
@@ -266,6 +271,55 @@ export default function App() {
     }
   }
 
+  // Handle Sign in with GitHub
+  async function handleGithubSignIn() {
+    setLoginError('');
+    setLoading(true);
+    try {
+      const provider = new GithubAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const uid = result.user.uid;
+      const userDocSnap = await getDoc(doc(db, 'users', uid));
+      if (!userDocSnap.exists()) {
+        const defaultProfile = {
+          id: uid,
+          email: result.user.email || 'github-user@example.com',
+          name: result.user.displayName || 'GitHub Professional',
+          role: 'Hospital Admin' as const,
+          hospitalId: 'hospital_a',
+          createdAt: new Date().toISOString()
+        };
+        await createUserProfile(uid, defaultProfile);
+        setUser(defaultProfile);
+        const hospDocSnap = await getDoc(doc(db, 'hospitals', 'hospital_a'));
+        if (hospDocSnap.exists()) {
+          setHospitalInfo(hospDocSnap.data() as Hospital);
+        }
+      } else {
+        const profile = userDocSnap.data() as UserProfile;
+        setUser(profile);
+        if (profile.role !== 'Super Admin' && profile.hospitalId) {
+          const hospDocSnap = await getDoc(doc(db, 'hospitals', profile.hospitalId));
+          if (hospDocSnap.exists()) {
+            setHospitalInfo(hospDocSnap.data() as Hospital);
+            setIsSuspended(hospDocSnap.data().status === 'suspended');
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('GitHub authentication error:', err);
+      if (err.code === 'auth/popup-blocked') {
+        setLoginError('GitHub sign-in popup was blocked by your browser. Please try opening the app in a new tab (click the top-right arrow button) or allow popups.');
+      } else if (err.code === 'auth/cancelled-popup-request' || err.code === 'auth/popup-closed-by-user') {
+        setLoginError('Sign-in cancelled.');
+      } else {
+        setLoginError(`GitHub sign-in failed: ${err.message}. Make sure GitHub login is enabled in your Firebase Auth console, and you are running the app in a new tab if iframe redirects fail.`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Verify Super Admin access PIN
   function handleSuperPinSubmit() {
     if (superPin === '2026') {
@@ -437,6 +491,7 @@ export default function App() {
       if (settings) {
         setSystemLogo(settings.logo || '/logo.svg');
         setSystemName(settings.name || 'RAPHA JOY MEDICAL CLINICS');
+        setSystemPrimaryColor(settings.primaryColor || '#0f172a');
       }
       setLoadedHospitals(hosps);
     } catch (e) {
@@ -508,9 +563,10 @@ export default function App() {
         <SuperAdminDashboard 
           currentUser={user} 
           onLogout={handleLogout} 
-          onBrandingUpdate={(name: string, logo: string) => {
+          onBrandingUpdate={(name: string, logo: string, primaryColor?: string) => {
             setSystemName(name);
             setSystemLogo(logo);
+            if (primaryColor) setSystemPrimaryColor(primaryColor);
           }}
         />
       );
@@ -528,12 +584,31 @@ export default function App() {
   // 3. SECURE LANDING & QUICK LOGIN PANEL (MULTI-TENANCY SELECTOR)
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+      <style>{`
+        .brand-bg {
+          background-color: ${systemPrimaryColor} !important;
+        }
+        .brand-text {
+          color: ${systemPrimaryColor} !important;
+        }
+        .brand-border {
+          border-color: ${systemPrimaryColor} !important;
+        }
+        .brand-ring:focus {
+          --tw-ring-color: ${systemPrimaryColor} !important;
+          border-color: ${systemPrimaryColor} !important;
+        }
+        .brand-bg-hover:hover {
+          filter: brightness(0.9) !important;
+          opacity: 0.95 !important;
+        }
+      `}</style>
       
       {/* Top navbar */}
       <header className="bg-white border-b border-slate-200 py-2 px-6">
         <div className="max-w-7xl w-full mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3.5">
-            <div className={`flex items-center justify-center w-16 h-16 overflow-hidden shrink-0 ${systemLogo ? '' : 'bg-emerald-600 p-2 rounded-xl text-white'}`}>
+            <div className={`flex items-center justify-center w-16 h-16 overflow-hidden shrink-0 ${systemLogo ? '' : 'brand-bg p-2 rounded-xl text-white'}`}>
               {systemLogo ? (
                 <img 
                   src={systemLogo} 
@@ -547,7 +622,7 @@ export default function App() {
             </div>
             <span className="font-extrabold text-slate-800 text-lg tracking-tight uppercase">{systemName}</span>
           </div>
-          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full flex items-center gap-1">
+          <span className="text-xs font-semibold brand-text bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1 border brand-border">
             <Shield className="w-3.5 h-3.5" /> Isolated Database Environment
           </span>
         </div>
@@ -559,10 +634,10 @@ export default function App() {
         {/* Left column: Descriptive */}
         <div className="flex-1 space-y-6 max-w-xl text-center lg:text-left">
           <div className="space-y-3">
-            <span className="text-xs font-bold text-emerald-600 tracking-widest uppercase">Multi-Tenant Platform</span>
+            <span className="text-xs font-bold brand-text tracking-widest uppercase">Multi-Tenant Platform</span>
             <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-800 tracking-tight leading-none">
               One Secure HMS Core, <br />
-              <span className="text-emerald-600">{loadedHospitals.length} Distinct Tenant Hospitals.</span>
+              <span className="brand-text">{loadedHospitals.length} Distinct Tenant Hospitals.</span>
             </h1>
             <p className="text-slate-500 text-sm leading-relaxed">
               This system hosts {loadedHospitals.length === 5 ? 'five' : loadedHospitals.length} independent medical networks under one server architecture, completely isolated by security policies. Sign in as different clinical roles to experience live data separation.
@@ -571,11 +646,11 @@ export default function App() {
 
           <div className="grid grid-cols-2 gap-3 max-w-md mx-auto lg:mx-0">
             <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-2.5">
-              <Building2 className="w-5 h-5 text-emerald-600" />
+              <Building2 className="w-5 h-5 brand-text" />
               <span className="text-xs text-slate-700 font-semibold">{loadedHospitals.length} Hospitals Separated</span>
             </div>
             <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-2.5">
-              <Shield className="w-5 h-5 text-emerald-600" />
+              <Shield className="w-5 h-5 brand-text" />
               <span className="text-xs text-slate-700 font-semibold">Strict hospitalId Filters</span>
             </div>
           </div>
@@ -597,13 +672,13 @@ export default function App() {
           {/* Quick Login Grid */}
           <div className="space-y-4">
             
-            {/* Global Super Admin Selector */}
+             {/* Global Super Admin Selector */}
             <div className="border-b border-slate-100 pb-3 space-y-2">
               {!showSuperPinInput ? (
                 <button 
                   id="login-super"
                   onClick={() => setShowSuperPinInput(true)}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-xl flex items-center justify-between text-xs font-bold transition-all shadow-xs"
+                  className="w-full brand-bg brand-bg-hover text-white p-3 rounded-xl flex items-center justify-between text-xs font-bold transition-all shadow-xs"
                 >
                   <div className="flex items-center gap-2.5">
                     <Shield className="w-4 h-4 text-red-400" />
@@ -641,7 +716,7 @@ export default function App() {
                         setSuperPin(e.target.value);
                         setSuperPinError('');
                       }}
-                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           handleSuperPinSubmit();
@@ -651,7 +726,7 @@ export default function App() {
                     <button 
                       type="button"
                       onClick={handleSuperPinSubmit}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-colors"
+                      className="brand-bg brand-bg-hover text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-colors"
                     >
                       Verify
                     </button>
@@ -772,7 +847,7 @@ export default function App() {
           <div className="text-center">
             <button 
               onClick={() => setShowManualForm(!showManualForm)}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800 hover:underline"
+              className="text-xs font-semibold text-slate-500 hover:brand-text hover:underline"
             >
               {showManualForm ? 'Hide credentials sign-in' : 'Sign in manually with custom login'}
             </button>
@@ -790,7 +865,7 @@ export default function App() {
                       setResetSuccess('');
                       setResetError('');
                     }}
-                    className="text-[10px] text-slate-500 hover:text-slate-800 underline font-semibold"
+                    className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
                   >
                     Back to manual sign-in
                   </button>
@@ -813,7 +888,7 @@ export default function App() {
                     type="email" 
                     value={resetEmail} 
                     onChange={e => setResetEmail(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 focus:ring-slate-800"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
                     placeholder="Enter your registered email"
                     required
                   />
@@ -822,7 +897,7 @@ export default function App() {
                 <button 
                   type="submit"
                   disabled={resetLoading}
-                  className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-semibold py-2 rounded-lg flex justify-center items-center gap-1.5"
+                  className="w-full brand-bg brand-bg-hover disabled:bg-slate-400 text-white font-semibold py-2 rounded-lg flex justify-center items-center gap-1.5"
                 >
                   {resetLoading ? 'Sending link...' : 'Send Password Reset Link'}
                 </button>
@@ -835,7 +910,7 @@ export default function App() {
                     type="email" 
                     value={email} 
                     onChange={e => setEmail(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 focus:ring-slate-800"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
                     required
                   />
                 </div>
@@ -850,7 +925,7 @@ export default function App() {
                         setResetSuccess('');
                         setResetError('');
                       }}
-                      className="text-[10px] text-slate-500 hover:text-slate-800 underline font-semibold"
+                      className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
                     >
                       Forgot password?
                     </button>
@@ -859,16 +934,32 @@ export default function App() {
                     type="password" 
                     value={password} 
                     onChange={e => setPassword(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 focus:ring-slate-800"
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
                     required
                   />
                 </div>
 
                 <button 
                   type="submit"
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2 rounded-lg"
+                  className="w-full brand-bg brand-bg-hover text-white font-semibold py-2 rounded-lg"
                 >
                   Sign In Manual
+                </button>
+
+                <div className="relative my-3 flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200"></div>
+                  </div>
+                  <span className="relative bg-white px-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">or continue with</span>
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleGithubSignIn}
+                  className="w-full border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold py-2 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Github className="w-4 h-4 text-slate-800" />
+                  <span>Sign In with GitHub</span>
                 </button>
               </form>
             )

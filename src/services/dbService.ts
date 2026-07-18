@@ -41,6 +41,7 @@ export async function getAllHospitals(): Promise<Hospital[]> {
 export interface SystemSettings {
   logo?: string;
   name?: string;
+  primaryColor?: string;
 }
 
 export async function getSystemSettings(): Promise<SystemSettings | null> {
