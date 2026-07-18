@@ -21,7 +21,8 @@ import {
   MedicalRecord, 
   Billing, 
   PharmacyStock, 
-  WardBed 
+  WardBed,
+  RolePermission
 } from '../types';
 
 // ==========================================
@@ -128,6 +129,19 @@ export async function getHospitalUsers(hospitalId: string): Promise<UserProfile[
   const q = query(collection(db, 'users'), where('hospitalId', '==', hospitalId));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+}
+
+export async function getAllUsers(): Promise<UserProfile[]> {
+  const snapshot = await getDocs(collection(db, 'users'));
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+}
+
+export async function deleteUserProfile(uid: string): Promise<void> {
+  await deleteDoc(doc(db, 'users', uid));
+}
+
+export async function updateUserProfile(uid: string, data: Partial<UserProfile>): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), data);
 }
 
 // ==========================================
@@ -347,7 +361,7 @@ export async function getSystemStats() {
 // ==========================================
 
 export async function downloadAllSystemDataBackup(): Promise<string> {
-  const collections = ['hospitals', 'users', 'patients', 'appointments', 'medicalRecords', 'billing', 'pharmacyStock', 'wardBeds'];
+  const collections = ['hospitals', 'users', 'patients', 'appointments', 'medicalRecords', 'billing', 'pharmacyStock', 'wardBeds', 'rolePermissions'];
   const backupData: Record<string, any[]> = {};
 
   for (const colName of collections) {
@@ -356,4 +370,28 @@ export async function downloadAllSystemDataBackup(): Promise<string> {
   }
 
   return JSON.stringify(backupData, null, 2);
+}
+
+// ==========================================
+// ROLE & PERMISSIONS (Multi-Tenant)
+// ==========================================
+
+export async function getRolePermissions(hospitalId: string): Promise<RolePermission[]> {
+  const q = query(collection(db, 'rolePermissions'), where('hospitalId', '==', hospitalId));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RolePermission));
+}
+
+export async function saveRolePermission(hospitalId: string, roleName: string, allowedTabs: string[]): Promise<void> {
+  const docId = `${hospitalId}_${roleName.replace(/\s+/g, '_')}`;
+  await setDoc(doc(db, 'rolePermissions', docId), {
+    hospitalId,
+    roleName,
+    allowedTabs,
+    createdAt: new Date().toISOString()
+  });
+}
+
+export async function deleteRolePermission(id: string): Promise<void> {
+  await deleteDoc(doc(db, 'rolePermissions', id));
 }

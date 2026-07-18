@@ -21,19 +21,7 @@ export interface UserProfile {
   hospitalId: string;
   name: string;
   email: string;
-  role: 
-    | 'Super Admin' 
-    | 'Hospital Admin' 
-    | 'Doctor' 
-    | 'Nurse' 
-    | 'Receptionist' 
-    | 'Pharmacist' 
-    | 'Laboratory' 
-    | 'Radiology' 
-    | 'Accountant' 
-    | 'Cashier' 
-    | 'Records Officer'
-    | 'Solo Practitioner';
+  role: string; // e.g. 'Super Admin', 'Hospital Admin', 'Doctor', etc. or custom roles
   department?: string;
   createdAt: string;
 }
@@ -171,4 +159,12 @@ export interface WardBed {
   status: 'Available' | 'Occupied';
   occupiedBy?: string;
   occupiedByName?: string;
+}
+
+export interface RolePermission {
+  id: string; // `${hospitalId}_${roleName}`
+  hospitalId: string;
+  roleName: string;
+  allowedTabs: string[]; // List of tab IDs like 'reception', 'consultation', etc.
+  createdAt: string;
 }

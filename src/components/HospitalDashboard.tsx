@@ -23,6 +23,7 @@ import {
   TrendingUp, 
   Clock, 
   ShieldAlert,
+  Shield,
   Archive,
   RefreshCw,
   Printer,
@@ -42,7 +43,8 @@ import {
   Billing,
   DrugPrescription,
   LabRequest,
-  RadiologyRequest
+  RadiologyRequest,
+  RolePermission
 } from '../types';
 import { 
   getPatients, 
@@ -65,9 +67,27 @@ import {
   getSystemSettings,
   getHospital,
   updateHospitalDetails,
-  updatePatient
+  updatePatient,
+  getRolePermissions,
+  saveRolePermission,
+  deleteRolePermission
 } from '../services/dbService';
 import { seedHospitalSpecificData } from '../seedData';
+
+export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  'Super Admin': ['dashboard', 'reception', 'consultation', 'laboratory', 'radiology', 'pharmacy', 'billing', 'wards', 'specialized', 'reports', 'settings'],
+  'Hospital Admin': ['dashboard', 'reception', 'consultation', 'laboratory', 'radiology', 'pharmacy', 'billing', 'wards', 'specialized', 'reports', 'settings'],
+  'Doctor': ['dashboard', 'consultation', 'wards', 'specialized', 'reports', 'settings'],
+  'Nurse': ['dashboard', 'wards', 'specialized', 'reports'],
+  'Receptionist': ['dashboard', 'reception', 'reports'],
+  'Pharmacist': ['dashboard', 'pharmacy', 'reports'],
+  'Laboratory': ['dashboard', 'laboratory', 'reports'],
+  'Radiology': ['dashboard', 'radiology', 'reports'],
+  'Accountant': ['dashboard', 'billing', 'reports'],
+  'Cashier': ['dashboard', 'billing', 'reports'],
+  'Records Officer': ['dashboard', 'reception', 'reports'],
+  'Solo Practitioner': ['dashboard', 'reception', 'consultation', 'laboratory', 'radiology', 'pharmacy', 'billing', 'wards', 'specialized', 'reports', 'settings'],
+};
 
 interface HospitalDashboardProps {
   currentUser: UserProfile;
@@ -100,6 +120,12 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
 
   // Active module tab
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+
+  // Role & Permissions states
+  const [rolePermissionsList, setRolePermissionsList] = useState<RolePermission[]>([]);
+  const [editingRoleName, setEditingRoleName] = useState<string | null>(null);
+  const [editingAllowedTabs, setEditingAllowedTabs] = useState<string[]>([]);
+  const [newCustomRoleName, setNewCustomRoleName] = useState<string>('');
 
   // Forms / Intermediary States
   const [showAddPatient, setShowAddPatient] = useState(false);
@@ -703,7 +729,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
   async function fetchTenantData() {
     setLoading(true);
     try {
-      const [pList, aList, mList, sList, bList, billList, settings, hospInfo] = await Promise.all([
+      const [pList, aList, mList, sList, bList, billList, settings, hospInfo, rPerms] = await Promise.all([
         getPatients(hospitalId),
         getAppointments(hospitalId),
         getMedicalRecords(hospitalId),
@@ -711,11 +737,16 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
         getWardBeds(hospitalId),
         getBillingRecords(hospitalId),
         getSystemSettings().catch(() => null),
-        getHospital(hospitalId).catch(() => null)
+        getHospital(hospitalId).catch(() => null),
+        getRolePermissions(hospitalId).catch(() => [])
       ]);
 
       if (hospInfo) {
         setHospitalDetails(hospInfo);
+      }
+
+      if (rPerms) {
+        setRolePermissionsList(rPerms);
       }
 
       if (pList.length === 0) {
@@ -723,13 +754,14 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
         await seedHospitalSpecificData(hospitalId);
         
         // Re-fetch all seeded collections
-        const [newPList, newAList, newMList, newSList, newBList, newBillList] = await Promise.all([
+        const [newPList, newAList, newMList, newSList, newBList, newBillList, newRPerms] = await Promise.all([
           getPatients(hospitalId),
           getAppointments(hospitalId),
           getMedicalRecords(hospitalId),
           getPharmacyStock(hospitalId),
           getWardBeds(hospitalId),
-          getBillingRecords(hospitalId)
+          getBillingRecords(hospitalId),
+          getRolePermissions(hospitalId).catch(() => [])
         ]);
 
         setPatients(newPList);
@@ -738,6 +770,9 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
         setStock(newSList);
         setBeds(newBList);
         setBillings(newBillList);
+        if (newRPerms) {
+          setRolePermissionsList(newRPerms);
+        }
       } else {
         setPatients(pList);
         setAppointments(aList);
@@ -798,13 +833,34 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
 
   // Permissions gate
   const isAllowed = (allowedRoles: UserProfile['role'][]) => {
+    // Super Admins have absolute master privileges
+    if (currentUser.role === 'Super Admin') return true;
+
+    // Resolve which tab/feature this check represents
+    let tabId = '';
+    if (allowedRoles.includes('Receptionist')) tabId = 'reception';
+    else if (allowedRoles.includes('Pharmacist')) tabId = 'pharmacy';
+    else if (allowedRoles.includes('Laboratory')) tabId = 'laboratory';
+    else if (allowedRoles.includes('Radiology')) tabId = 'radiology';
+    else if (allowedRoles.includes('Accountant') || allowedRoles.includes('Cashier')) tabId = 'billing';
+    else if (allowedRoles.includes('Doctor') && allowedRoles.includes('Nurse')) tabId = 'specialized';
+    else if (allowedRoles.includes('Nurse')) tabId = 'wards';
+    else if (allowedRoles.includes('Doctor')) tabId = 'consultation';
+
+    // If there is a custom or modified role permission in the Firestore database
+    const userRolePermission = rolePermissionsList.find(rp => rp.roleName === currentUser.role);
+    if (userRolePermission && tabId) {
+      return userRolePermission.allowedTabs.includes(tabId);
+    }
+
+    // Default hardcoded fallback
     if (currentUser.role === 'Solo Practitioner') {
       const soloRoles: UserProfile['role'][] = ['Doctor', 'Receptionist', 'Pharmacist', 'Cashier', 'Accountant', 'Records Officer'];
       if (allowedRoles.some(r => soloRoles.includes(r))) {
         return true;
       }
     }
-    return currentUser.role === 'Super Admin' || currentUser.role === 'Hospital Admin' || allowedRoles.includes(currentUser.role);
+    return currentUser.role === 'Hospital Admin' || allowedRoles.includes(currentUser.role);
   };
 
   // ----------------------------------------------------
@@ -1607,6 +1663,19 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
             <Settings className="w-4 h-4" />
             <span>Clinic Profile & Settings</span>
           </button>
+
+          {(currentUser.role === 'Super Admin' || currentUser.role === 'Hospital Admin' || currentUser.role === 'Solo Practitioner') && (
+            <button 
+              id="tab-permissions" 
+              onClick={() => setActiveTab('permissions')}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold flex items-center space-x-2.5 transition-colors ${
+                activeTab === 'permissions' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              <span>Roles & Permissions</span>
+            </button>
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-800 space-y-3 bg-slate-950/40">
@@ -3243,6 +3312,226 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                         ))
                       )}
                     </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {/* 11. ROLES & PERMISSIONS MATRIX */}
+            {activeTab === 'permissions' && (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center space-x-3">
+                      <div className="bg-indigo-100 text-indigo-800 p-2.5 rounded-xl">
+                        <Shield className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h2 className="font-extrabold text-slate-900 text-lg">Hospital Roles & Access Control Matrix</h2>
+                        <p className="text-xs text-slate-500 font-medium">Create custom roles and control which staff roles can access clinical, administrative, or billing workspaces.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Create Custom Role form */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Add Custom Hospital Role</h3>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={newCustomRoleName}
+                          onChange={e => setNewCustomRoleName(e.target.value)}
+                          placeholder="e.g. Chief Nurse, Clinical Intern..."
+                          className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-indigo-500 transition-colors"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!newCustomRoleName.trim()) return;
+                          const name = newCustomRoleName.trim();
+                          try {
+                            // Default custom roles get dashboard by default
+                            await saveRolePermission(hospitalId, name, ['dashboard']);
+                            setNewCustomRoleName('');
+                            // Re-fetch role permissions
+                            const rPerms = await getRolePermissions(hospitalId);
+                            setRolePermissionsList(rPerms);
+                          } catch (err: any) {
+                            console.error('Failed to save role:', err);
+                          }
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition-colors shrink-0 shadow-sm cursor-pointer"
+                      >
+                        Create Role
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Roles and Permissions Matrix */}
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left border-collapse bg-white">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 text-[10px] font-bold uppercase border-b border-slate-200">
+                          <th className="py-3 px-4">Role / Designation</th>
+                          <th className="py-3 px-4">Workspace & Module Authorizations</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-xs text-slate-700">
+                        {/* List all roles */}
+                        {Object.keys(DEFAULT_ROLE_PERMISSIONS)
+                          .filter(role => role !== 'Super Admin') // Super Admin always gets everything, cannot be changed
+                          .concat(
+                            rolePermissionsList
+                              .map(p => p.roleName)
+                              .filter(role => !Object.keys(DEFAULT_ROLE_PERMISSIONS).includes(role))
+                          )
+                          .map(role => {
+                            const customPerm = rolePermissionsList.find(p => p.roleName === role);
+                            const activeTabs = customPerm ? customPerm.allowedTabs : (DEFAULT_ROLE_PERMISSIONS[role] || ['dashboard']);
+                            const isEditing = editingRoleName === role;
+
+                            const allWorkspaces = [
+                              { id: 'dashboard', label: 'Clinical Hub' },
+                              { id: 'reception', label: 'Reception & Queue' },
+                              { id: 'consultation', label: 'Consultation Room' },
+                              { id: 'laboratory', label: 'Lab Workspace' },
+                              { id: 'radiology', label: 'Radiology Unit' },
+                              { id: 'pharmacy', label: 'Pharmacy Workspace' },
+                              { id: 'billing', label: 'Billing & Invoice' },
+                              { id: 'wards', label: 'Ward Allocations' },
+                              { id: 'specialized', label: 'Theatre & Maternity' },
+                              { id: 'reports', label: 'Reports & Analytics' },
+                              { id: 'settings', label: 'Clinic Settings' }
+                            ];
+
+                            return (
+                              <tr key={role} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="py-4 px-4 font-bold text-slate-800">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                                    <span>{role}</span>
+                                  </div>
+                                  {customPerm ? (
+                                    <span className="text-[10px] text-indigo-600 bg-indigo-50 font-semibold px-2 py-0.5 rounded border border-indigo-100 mt-1 inline-block">
+                                      Custom Role / Override
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-semibold mt-1 inline-block">
+                                      Standard Design System Default
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-4 px-4">
+                                  {isEditing ? (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                      {allWorkspaces.map(ws => (
+                                        <label key={ws.id} className="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer hover:text-indigo-600 transition-colors">
+                                          <input
+                                            type="checkbox"
+                                            checked={editingAllowedTabs.includes(ws.id)}
+                                            onChange={e => {
+                                              if (e.target.checked) {
+                                                setEditingAllowedTabs([...editingAllowedTabs, ws.id]);
+                                              } else {
+                                                setEditingAllowedTabs(editingAllowedTabs.filter(id => id !== ws.id));
+                                              }
+                                            }}
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                                          />
+                                          <span>{ws.label}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {activeTabs.map(tab => {
+                                        const label = allWorkspaces.find(w => w.id === tab)?.label || tab;
+                                        return (
+                                          <span key={tab} className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                                            {label}
+                                          </span>
+                                        );
+                                      })}
+                                      {activeTabs.length === 0 && (
+                                        <span className="text-[10px] italic text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
+                                          Restricted (No access)
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-4 px-4 text-right">
+                                  {isEditing ? (
+                                    <div className="space-x-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingRoleName(null);
+                                          setEditingAllowedTabs([]);
+                                        }}
+                                        className="text-[10px] bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-2.5 py-1.5 rounded-md font-bold transition-colors cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          try {
+                                            await saveRolePermission(hospitalId, role, editingAllowedTabs);
+                                            setEditingRoleName(null);
+                                            setEditingAllowedTabs([]);
+                                            const rPerms = await getRolePermissions(hospitalId);
+                                            setRolePermissionsList(rPerms);
+                                          } catch (err) {
+                                            console.error('Failed to save permissions:', err);
+                                          }
+                                        }}
+                                        className="text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 rounded-md font-bold transition-colors cursor-pointer shadow-xs"
+                                      >
+                                        Save Matrix
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="space-x-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingRoleName(role);
+                                          setEditingAllowedTabs(activeTabs);
+                                        }}
+                                        className="text-[10px] bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-2.5 py-1.5 rounded-md font-bold transition-colors cursor-pointer"
+                                      >
+                                        Modify
+                                      </button>
+                                      {customPerm && (
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            try {
+                                              await deleteRolePermission(customPerm.id);
+                                              const rPerms = await getRolePermissions(hospitalId);
+                                              setRolePermissionsList(rPerms);
+                                            } catch (err) {
+                                              console.error('Failed to delete role custom permission:', err);
+                                            }
+                                          }}
+                                          className="text-[10px] bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2.5 py-1.5 rounded-md font-bold transition-colors cursor-pointer"
+                                        >
+                                          Reset Default
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
                   </div>
 
                 </div>

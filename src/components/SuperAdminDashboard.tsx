@@ -51,7 +51,10 @@ import {
   deleteHospital,
   getSystemSettings,
   updateSystemSettings,
-  SystemSettings
+  SystemSettings,
+  getAllUsers,
+  deleteUserProfile,
+  updateUserProfile
 } from '../services/dbService';
 
 interface SuperAdminDashboardProps {
@@ -69,7 +72,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   const [showAddHospital, setShowAddHospital] = useState(false);
   const [newHospitalName, setNewHospitalName] = useState('');
   const [newHospitalCode, setNewHospitalCode] = useState('');
-  const [newHospitalSub, setNewHospitalSub] = useState<'Basic' | 'Standard' | 'Premium'>('Basic');
+  const [newHospitalSub, setNewHospitalSub] = useState<'Basic' | 'Standard' | 'Premium'>('Premium');
 
   // Edit / Delete Hospital States
   const [showEditHospital, setShowEditHospital] = useState(false);
@@ -106,6 +109,23 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   const [adminModalError, setAdminModalError] = useState('');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
 
+  // Loaded users and user CRUD states
+  const [allUsersList, setAllUsersList] = useState<UserProfile[]>([]);
+  const [rolePermissions, setRolePermissions] = useState<any[]>([]);
+  const [showEditUser, setShowEditUser] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserRole, setEditUserRole] = useState<UserProfile['role']>('Hospital Admin');
+  const [editUserHospitalId, setEditUserHospitalId] = useState('');
+
+  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [deletingUserName, setDeletingUserName] = useState('');
+
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userHospitalFilter, setUserHospitalFilter] = useState('');
+
   const [backingUp, setBackingUp] = useState(false);
 
   // Branding states
@@ -130,7 +150,30 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       console.error('Error listening to hospitals in SuperAdminDashboard:', err);
     });
 
-    return () => unsubscribe();
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserProfile));
+      const sortedUsers = list.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      setAllUsersList(sortedUsers);
+    }, (err) => {
+      console.error('Error listening to users in SuperAdminDashboard:', err);
+    });
+
+    const unsubscribeRolePerms = onSnapshot(collection(db, 'rolePermissions'), (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setRolePermissions(list);
+    }, (err) => {
+      console.error('Error listening to rolePermissions in SuperAdminDashboard:', err);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeUsers();
+      unsubscribeRolePerms();
+    };
   }, []);
 
   async function fetchData() {
@@ -278,6 +321,53 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       showToast('success', `Hospital tenant is now ${newStatus}.`);
     } catch (e: any) {
       showToast('error', 'Error updating status: ' + e.message);
+    }
+  }
+
+  // User Administration Handlers
+  function handleStartDeleteUser(userId: string, userName: string) {
+    setDeletingUserId(userId);
+    setDeletingUserName(userName);
+    setShowDeleteUserConfirm(true);
+  }
+
+  async function handleConfirmDeleteUser() {
+    if (!deletingUserId) return;
+    try {
+      await deleteUserProfile(deletingUserId);
+      setShowDeleteUserConfirm(false);
+      setDeletingUserId(null);
+      setDeletingUserName('');
+      showToast('success', 'Administrator account deleted successfully.');
+    } catch (err: any) {
+      showToast('error', 'Failed to delete administrator account: ' + err.message);
+    }
+  }
+
+  function handleStartEditUser(user: UserProfile) {
+    setEditingUser(user);
+    setEditUserName(user.name);
+    setEditUserEmail(user.email);
+    setEditUserRole(user.role);
+    setEditUserHospitalId(user.hospitalId || '');
+    setShowEditUser(true);
+  }
+
+  async function handleConfirmEditUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingUser) return;
+    try {
+      await updateUserProfile(editingUser.id, {
+        name: editUserName,
+        email: editUserEmail,
+        role: editUserRole,
+        hospitalId: editUserHospitalId || null
+      } as any);
+      setShowEditUser(false);
+      setEditingUser(null);
+      showToast('success', 'Administrator account updated successfully.');
+    } catch (err: any) {
+      showToast('error', 'Failed to update administrator account: ' + err.message);
     }
   }
 
@@ -744,51 +834,19 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-              {/* Basic Tier */}
-              <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/50 flex flex-col justify-between space-y-3">
-                <div className="space-y-1.5">
+            <div className="grid grid-cols-1 gap-4 mt-2">
+              {/* solo(All in One) Premium Plan Tier */}
+              <div className="border border-emerald-300 rounded-xl p-5 bg-emerald-50/20 flex flex-col justify-between space-y-3 shadow-xs">
+                <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-800 text-sm">Basic Plan</span>
-                    <span className="font-mono font-extrabold text-slate-900 text-sm">$499 <span className="text-[10px] font-normal text-slate-500">/mo</span></span>
+                    <span className="font-extrabold text-emerald-800 text-base">solo(All in One) Premium Plan</span>
+                    <span className="font-mono font-extrabold text-emerald-900 text-lg">$1,999 <span className="text-xs font-normal text-slate-500">/mo</span></span>
                   </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Designed for clinics and localized health centers. All core actions (Doctor, Receptionist, Pharmacist, Cashier) can be completed by a single operator/person.
-                  </p>
-                </div>
-                <div className="text-[10px] text-slate-500 border-t border-slate-200 pt-2 font-semibold">
-                  Includes: Doctors, Receptionists, Pharmacists, Cashiers (Operable by one person)
-                </div>
-              </div>
-
-              {/* Standard Tier */}
-              <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50/20 flex flex-col justify-between space-y-3">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-indigo-800 text-sm">Standard Plan</span>
-                    <span className="font-mono font-extrabold text-indigo-900 text-sm">$999 <span className="text-[10px] font-normal text-slate-500">/mo</span></span>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Ideal for regional medical facilities. Activates advanced clinical roles including Nurses, Laboratory Units, and Radiology Scan workflows, as well as digital NHIF/SHIF insurance tracking.
-                  </p>
-                </div>
-                <div className="text-[10px] text-indigo-500 border-t border-indigo-100 pt-2 font-medium">
-                  Includes Basic + Nurses, Laboratory, Radiology, Insurance logs
-                </div>
-              </div>
-
-              {/* Premium Tier */}
-              <div className="border border-purple-200 rounded-lg p-4 bg-purple-50/20 flex flex-col justify-between space-y-3">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-purple-800 text-sm">Premium Plan</span>
-                    <span className="font-mono font-extrabold text-purple-900 text-sm">$1,999 <span className="text-[10px] font-normal text-slate-500">/mo</span></span>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
+                  <p className="text-xs text-slate-600 leading-relaxed">
                     Built for high-volume networks. Grants unlimited user onboarding, comprehensive clinical department workflows, real-time diagnostic imaging, Ward Bed manager, and Priority SLA support.
                   </p>
                 </div>
-                <div className="text-[10px] text-purple-500 border-t border-purple-100 pt-2 font-medium">
+                <div className="text-[11px] text-emerald-700 border-t border-emerald-100 pt-3 font-semibold">
                   Includes All Standard + Ward Beds, Advanced Metrics, Premium SLA
                 </div>
               </div>
@@ -895,15 +953,13 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase">Subscription Tier</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Subscription Plan</label>
                   <select 
                     value={newHospitalSub}
                     onChange={e => setNewHospitalSub(e.target.value as any)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-slate-800 bg-white"
                   >
-                    <option value="Basic">Basic ($499/mo)</option>
-                    <option value="Standard">Standard ($999/mo)</option>
-                    <option value="Premium">Premium ($1999/mo)</option>
+                    <option value="Premium">solo(All in One) Premium Plan ($1,999/mo)</option>
                   </select>
                 </div>
               </div>
@@ -1372,6 +1428,137 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
           </div>
         )}
 
+        {/* Edit User Modal Overlay */}
+        {showEditUser && editingUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+            <form onSubmit={handleConfirmEditUser} className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 className="font-bold text-lg text-slate-800">Edit Administrator Account</h3>
+                <button type="button" onClick={() => { setShowEditUser(false); setEditingUser(null); }} className="text-slate-400 hover:text-slate-600">
+                  <Pause className="w-5 h-5 rotate-45" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Full Name</label>
+                  <input 
+                    type="text" 
+                    value={editUserName} 
+                    onChange={e => setEditUserName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Email Address</label>
+                  <input 
+                    type="email" 
+                    value={editUserEmail} 
+                    onChange={e => setEditUserEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Role</label>
+                  <select 
+                    value={editUserRole}
+                    onChange={e => setEditUserRole(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                    required
+                  >
+                    <option value="Hospital Admin">Hospital Admin</option>
+                    <option value="Doctor">Doctor</option>
+                    <option value="Nurse">Nurse</option>
+                    <option value="Receptionist">Receptionist</option>
+                    <option value="Pharmacist">Pharmacist</option>
+                    <option value="Laboratory">Laboratory</option>
+                    <option value="Radiology">Radiology</option>
+                    <option value="Accountant">Accountant</option>
+                    <option value="Cashier">Cashier</option>
+                    <option value="Records Officer">Records Officer</option>
+                    <option value="Solo Practitioner">Solo Practitioner</option>
+                    {Array.from(new Set(rolePermissions.map(rp => rp.roleName))).filter(rName => {
+                      const standardRoles = [
+                        "Hospital Admin", "Doctor", "Nurse", "Receptionist", "Pharmacist", 
+                        "Laboratory", "Radiology", "Accountant", "Cashier", "Records Officer", "Solo Practitioner"
+                      ];
+                      return !standardRoles.includes(rName);
+                    }).map(customRole => (
+                      <option key={customRole} value={customRole}>{customRole}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Assigned Hospital</label>
+                  <select 
+                    value={editUserHospitalId}
+                    onChange={e => setEditUserHospitalId(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                    required
+                  >
+                    <option value="">-- Choose Hospital --</option>
+                    {hospitals.map(h => (
+                      <option key={h.id} value={h.id}>{h.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
+                <button 
+                  type="button" 
+                  onClick={() => { setShowEditUser(false); setEditingUser(null); }}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Custom Delete User Confirmation Modal */}
+        {showDeleteUserConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+            <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm p-6 space-y-4">
+              <div className="flex items-center space-x-3 text-rose-600">
+                <div className="p-2 bg-rose-50 rounded-full">
+                  <Trash2 className="w-6 h-6 animate-bounce" />
+                </div>
+                <h3 className="font-bold text-lg">Permanently Delete Account?</h3>
+              </div>
+              <p className="text-sm text-slate-600">
+                Are you absolutely sure you want to permanently delete the account 
+                <span className="font-extrabold text-slate-800"> "{deletingUserName}"</span>? This user will lose access to the clinical workflows.
+              </p>
+              <div className="flex justify-end space-x-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => { setShowDeleteUserConfirm(false); setDeletingUserId(null); setDeletingUserName(''); }}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleConfirmDeleteUser}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg cursor-pointer"
+                >
+                  Delete Account
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Hospitals Table Card */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
@@ -1438,10 +1625,12 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                           <div className="flex items-center space-x-1.5">
                             <CreditCard className="w-4 h-4 text-slate-400" />
                             <span className={`font-semibold ${
-                              h.subscription === 'Premium' ? 'text-purple-600' :
+                              h.subscription === 'Premium' ? 'text-emerald-600' :
                               h.subscription === 'Standard' ? 'text-indigo-600' :
                               'text-slate-600'
-                            }`}>{h.subscription}</span>
+                            }`}>
+                              {h.subscription === 'Premium' ? 'solo(All in One)' : h.subscription}
+                            </span>
                           </div>
                           <span className="text-xs text-slate-400">
                             {h.subscription === 'Premium' ? '$1,999/mo' :
@@ -1511,6 +1700,153 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Hospital Administrators & Users Directory Card */}
+        <div id="sa-users-directory" className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+          <div className="p-5 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-500" /> Hospital Administrators & Staff Directory
+              </h2>
+              <p className="text-xs text-slate-500">Manage, edit, and delete Hospital Administrators or medical staff accounts across all tenants.</p>
+            </div>
+            <button
+              onClick={() => {
+                setAdminEmail('');
+                setAdminName('');
+                setAdminHospitalId('');
+                setAdminModalError('');
+                setShowAddAdmin(true);
+              }}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-semibold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 self-start sm:self-center transition-colors shadow-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Create Administrator</span>
+            </button>
+          </div>
+
+          {/* Search and Filters Bar */}
+          <div className="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={userSearchQuery}
+                onChange={e => setUserSearchQuery(e.target.value)}
+                placeholder="Search by name, email, or role..."
+                className="w-full pl-3 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600"
+              />
+            </div>
+            <div className="w-full sm:w-64">
+              <select
+                value={userHospitalFilter}
+                onChange={e => setUserHospitalFilter(e.target.value)}
+                className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+              >
+                <option value="">All Hospitals</option>
+                {hospitals.map(h => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-8 text-center text-slate-500">
+              <Activity className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
+              <span className="text-xs">Loading user registry database...</span>
+            </div>
+          ) : allUsersList.filter(u => u.role !== 'Super Admin' && (userSearchQuery ? (u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.role.toLowerCase().includes(userSearchQuery.toLowerCase())) : true) && (userHospitalFilter ? u.hospitalId === userHospitalFilter : true)).length === 0 ? (
+            <div className="p-12 text-center text-slate-400">
+              <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm font-semibold">No registered administrators found</p>
+              <p className="text-xs mt-1">Try resetting your search query or create a new administrator above.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-100 text-slate-600 text-[11px] font-bold uppercase border-b border-slate-200">
+                    <th className="py-3 px-6">Administrator / Staff Detail</th>
+                    <th className="py-3 px-6">Assigned Hospital</th>
+                    <th className="py-3 px-6">Role Type</th>
+                    <th className="py-3 px-6">Created On</th>
+                    <th className="py-3 px-6 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {allUsersList
+                    .filter(u => {
+                      if (u.role === 'Super Admin') return false;
+                      const matchesSearch = userSearchQuery ? (
+                        u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                        u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                        u.role.toLowerCase().includes(userSearchQuery.toLowerCase())
+                      ) : true;
+                      const matchesHospital = userHospitalFilter ? u.hospitalId === userHospitalFilter : true;
+                      return matchesSearch && matchesHospital;
+                    })
+                    .map(u => {
+                      const hospital = hospitals.find(h => h.id === u.hospitalId);
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3.5 px-6">
+                            <div className="font-bold text-slate-800">{u.name}</div>
+                            <div className="text-slate-400 text-[11px] font-mono">{u.email}</div>
+                          </td>
+                          <td className="py-3.5 px-6">
+                            {hospital ? (
+                              <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs font-semibold text-slate-700">
+                                <Building className="w-3 h-3 text-slate-500" />
+                                {hospital.name}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">No assigned hospital</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-6">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              u.role === 'Hospital Admin'
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : u.role === 'Doctor'
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : 'bg-slate-50 text-slate-700 border border-slate-200'
+                            }`}>
+                              <Shield className="w-3 h-3 animate-pulse" />
+                              {u.role}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-6 text-slate-500">
+                            {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Unknown'}
+                          </td>
+                          <td className="py-3.5 px-6 text-right space-x-2">
+                            <button
+                              id={`btn-edit-user-${u.id}`}
+                              onClick={() => handleStartEditUser(u)}
+                              className="text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                              title="Edit User"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>Edit</span>
+                            </button>
+
+                            <button
+                              id={`btn-delete-user-${u.id}`}
+                              onClick={() => handleStartDeleteUser(u.id, u.name)}
+                              className="text-[11px] bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                              title="Delete User"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Delete</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>

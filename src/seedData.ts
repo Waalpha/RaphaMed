@@ -24,7 +24,7 @@ export const INITIAL_HOSPITALS: Hospital[] = [
     name: 'Kisumu Medical Centre',
     code: 'KMC',
     status: 'active',
-    subscription: 'Standard',
+    subscription: 'Premium',
     createdAt: '2026-02-15T09:00:00Z'
   },
   {
@@ -32,7 +32,7 @@ export const INITIAL_HOSPITALS: Hospital[] = [
     name: 'Mombasa Coast General',
     code: 'MCG',
     status: 'active',
-    subscription: 'Basic',
+    subscription: 'Premium',
     createdAt: '2026-03-20T10:30:00Z'
   },
   {
@@ -40,7 +40,7 @@ export const INITIAL_HOSPITALS: Hospital[] = [
     name: 'Eldoret Referral Hospital',
     code: 'ERH',
     status: 'active',
-    subscription: 'Standard',
+    subscription: 'Premium',
     createdAt: '2026-04-05T14:15:00Z'
   },
   {
@@ -48,7 +48,7 @@ export const INITIAL_HOSPITALS: Hospital[] = [
     name: 'Nakuru Health Clinic',
     code: 'NHC',
     status: 'suspended',
-    subscription: 'Basic',
+    subscription: 'Premium',
     createdAt: '2026-05-12T11:00:00Z'
   }
 ];
@@ -57,9 +57,24 @@ export async function seedHospitalsAndData() {
   try {
     // Check if hospitals already exist
     const hospitalsRef = collection(db, 'hospitals');
-    const snapshot = await getDocs(query(hospitalsRef, limit(1)));
+    const snapshot = await getDocs(hospitalsRef);
     if (!snapshot.empty) {
-      console.log('Hospitals already seeded.');
+      console.log('Hospitals already exist. Checking if plan migration to Premium is needed...');
+      const batch = writeBatch(db);
+      let needsMigration = false;
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data.subscription !== 'Premium') {
+          batch.update(docSnap.ref, { subscription: 'Premium' });
+          needsMigration = true;
+        }
+      });
+      if (needsMigration) {
+        await batch.commit();
+        console.log('Existing hospitals migrated to Premium subscription successfully!');
+      } else {
+        console.log('All existing hospitals are already on the Premium plan.');
+      }
       return;
     }
 
