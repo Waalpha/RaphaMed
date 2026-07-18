@@ -29,6 +29,17 @@ import {
   UserProfile 
 } from '../types';
 import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
+import { 
   getAllHospitals, 
   createHospital, 
   updateHospitalStatus, 
@@ -404,6 +415,43 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   const totalRevenue = statsList.reduce((sum, current) => sum + current.totalRevenue, 0);
   const totalPatientsServed = statsList.reduce((sum, current) => sum + current.patients, 0);
 
+  const activeSubscriptionRevenue = hospitals
+    .filter(h => h.status === 'active')
+    .reduce((sum, h) => {
+      const plan = h.subscription || 'Basic';
+      if (plan === 'Basic') return sum + 499;
+      if (plan === 'Standard') return sum + 999;
+      if (plan === 'Premium') return sum + 1999;
+      return sum;
+    }, 0);
+
+  const suspendedSubscriptionRevenue = hospitals
+    .filter(h => h.status === 'suspended')
+    .reduce((sum, h) => {
+      const plan = h.subscription || 'Basic';
+      if (plan === 'Basic') return sum + 499;
+      if (plan === 'Standard') return sum + 999;
+      if (plan === 'Premium') return sum + 1999;
+      return sum;
+    }, 0);
+
+  const totalSubscriptionRevenue = activeSubscriptionRevenue + suspendedSubscriptionRevenue;
+
+  const summaryChartData = [
+    {
+      name: 'Active',
+      'Tenants': activeHospitals,
+      'Revenue ($)': activeSubscriptionRevenue,
+      color: '#10b981'
+    },
+    {
+      name: 'Suspended',
+      'Tenants': suspendedHospitals,
+      'Revenue ($)': suspendedSubscriptionRevenue,
+      color: '#f59e0b'
+    }
+  ];
+
   return (
     <div id="super-admin-dashboard" className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Header */}
@@ -505,6 +553,84 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             </div>
             <div className="bg-slate-50 p-3 rounded-lg text-slate-500">
               <Database className="w-6 h-6" />
+            </div>
+          </div>
+        </div>
+
+        {/* Tenant Summary & Subscription Revenue Recharts Bar */}
+        <div id="sa-recharts-summary-bar" className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-3 gap-3">
+            <div>
+              <h3 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-indigo-500" /> Subscription & Tenancy Analytics
+              </h3>
+              <p className="text-xs text-slate-500">Breakdown of active vs suspended tenants and their collective recurring subscription revenue.</p>
+            </div>
+            <div className="text-left sm:text-right bg-indigo-50 px-3.5 py-1.5 rounded-lg border border-indigo-100">
+              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">Total Monthly ARR</span>
+              <span className="text-sm font-black text-indigo-800">${totalSubscriptionRevenue.toLocaleString()} <span className="text-[10px] font-semibold text-indigo-400">/mo</span></span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Chart: Tenants Count */}
+            <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tenant Distribution</span>
+                <span className="text-xs font-mono font-bold text-slate-500">
+                  {activeHospitals} Active / {suspendedHospitals} Suspended
+                </span>
+              </div>
+              <div className="h-28 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={summaryChartData} layout="vertical" margin={{ top: 5, right: 30, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" allowDecimals={false} stroke="#94a3b8" fontSize={10} />
+                    <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} fontWeight="bold" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px' }}
+                      cursor={{ fill: '#f1f5f9' }}
+                    />
+                    <Bar dataKey="Tenants" radius={[0, 4, 4, 0]} barSize={16}>
+                      {summaryChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Right Chart: Subscription Revenue */}
+            <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Collective ARR Breakdown</span>
+                <span className="text-xs font-mono font-bold text-indigo-600">
+                  ARR: ${totalSubscriptionRevenue.toLocaleString()}
+                </span>
+              </div>
+              <div className="h-28 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={summaryChartData} layout="vertical" margin={{ top: 5, right: 30, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                    <XAxis type="number" stroke="#94a3b8" fontSize={10} tickFormatter={(v) => `$${v}`} />
+                    <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} fontWeight="bold" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px' }}
+                      formatter={(value: any) => [value !== undefined && value !== null ? `$${value.toLocaleString()}` : '$0', 'Revenue']}
+                      cursor={{ fill: '#f1f5f9' }}
+                    />
+                    <Bar dataKey="Revenue ($)" radius={[0, 4, 4, 0]} barSize={16}>
+                      {summaryChartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.name === 'Active' ? '#6366f1' : '#cbd5e1'} 
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         </div>
