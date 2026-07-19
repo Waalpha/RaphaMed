@@ -103,7 +103,15 @@ export async function updateHospitalSubscription(hospitalId: string, subscriptio
 }
 
 export async function updateHospitalOnlineStatus(hospitalId: string, isOnline: boolean): Promise<void> {
-  await updateDoc(doc(db, 'hospitals', hospitalId), { isOnline });
+  await updateDoc(doc(db, 'hospitals', hospitalId), { isOnline, lastActiveAt: isOnline ? Date.now() : 0 });
+}
+
+export async function updateHospitalActiveHeartbeat(hospitalId: string): Promise<void> {
+  if (!hospitalId) return;
+  await updateDoc(doc(db, 'hospitals', hospitalId), { 
+    isOnline: true, 
+    lastActiveAt: Date.now() 
+  }).catch(() => {});
 }
 
 // ==========================================

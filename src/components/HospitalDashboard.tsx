@@ -211,17 +211,17 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
       ? receipt.items.map(item => `
           <tr>
             <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;">${item.description}</td>
-            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right">KES ${item.amount.toLocaleString()}</td>
+            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right">KSh ${item.amount.toLocaleString()}</td>
             <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: center;">${item.quantity}</td>
-            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right font-bold">KES ${(item.amount * item.quantity).toLocaleString()}</td>
+            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right font-bold">KSh ${(item.amount * item.quantity).toLocaleString()}</td>
           </tr>
         `).join('')
       : `
           <tr>
             <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;">Standard Consultation Fee</td>
-            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right">KES ${receipt.totalAmount.toLocaleString()}</td>
+            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right">KSh ${receipt.totalAmount.toLocaleString()}</td>
             <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0; text-align: center;">1</td>
-            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right font-bold">KES ${receipt.totalAmount.toLocaleString()}</td>
+            <td style="padding: 6px 0; border-bottom: 1px dashed #e2e8f0;" class="text-right font-bold">KSh ${receipt.totalAmount.toLocaleString()}</td>
           </tr>
         `;
 
@@ -229,7 +229,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
       ? `
         <div class="total-row" style="color: #4f46e5; font-weight: 600;">
           <span>SHIF / NHIF Cover:</span>
-          <span>- KES ${receipt.insuranceClaimed.toLocaleString()}</span>
+          <span>- KSh ${receipt.insuranceClaimed.toLocaleString()}</span>
         </div>
       `
       : '';
@@ -543,16 +543,16 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
     <div class="totals-box">
       <div class="total-row">
         <span style="color: #94a3b8;">Total Invoice:</span>
-        <span class="font-semibold" style="color: #334155;">KES ${receipt.totalAmount.toLocaleString()}</span>
+        <span class="font-semibold" style="color: #334155;">KSh ${receipt.totalAmount.toLocaleString()}</span>
       </div>
       ${insuranceClaimedHTML}
       <div class="total-row grand-total">
         <span>Amount Paid:</span>
-        <span>KES ${receipt.patientPaid.toLocaleString()}</span>
+        <span>KSh ${receipt.patientPaid.toLocaleString()}</span>
       </div>
       <div class="total-row" style="margin-top: 5px; border-top: 1px dashed #cbd5e1; padding-top: 5px; color: #64748b; font-size: 10px;">
         <span>Outstanding:</span>
-        <span class="font-mono">KES ${outstandingBalance.toLocaleString()}</span>
+        <span class="font-mono">KSh ${outstandingBalance.toLocaleString()}</span>
       </div>
     </div>
 
@@ -1046,7 +1046,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
       const patientObj = patients.find(p => p.id === selectedConsultation.patientId);
       let claimedInsurance = 0;
       if (patientObj && (patientObj.insuranceType === 'NHIF' || patientObj.insuranceType === 'SHIF')) {
-        claimedInsurance = Math.min(totalAmount, 3000); // KES 3,000 national health subsidy capping
+        claimedInsurance = Math.min(totalAmount, 3000); // KSh 3,000 national health subsidy capping
       } else if (patientObj && patientObj.insuranceType === 'Private') {
         claimedInsurance = Math.round(totalAmount * 0.8); // 80% private insurance coverage
       }
@@ -1245,7 +1245,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
       // 2. Determine insurance coverage
       let claimedInsurance = 0;
       if (patientObj.insuranceType === 'NHIF' || patientObj.insuranceType === 'SHIF') {
-        claimedInsurance = Math.min(totalAmount, 3000); // KES 3,000 national health subsidy capping
+        claimedInsurance = Math.min(totalAmount, 3000); // KSh 3,000 national health subsidy capping
       } else if (patientObj.insuranceType === 'Private') {
         claimedInsurance = Math.round(totalAmount * 0.8); // 80% private insurance coverage
       }
@@ -1797,7 +1797,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                   <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tenant Revenue Yield</span>
-                      <h4 className="text-2xl font-black text-slate-800 mt-1">KES {totalFinancialYield.toLocaleString()}</h4>
+                      <h4 className="text-2xl font-black text-slate-800 mt-1">KSh {totalFinancialYield.toLocaleString()}</h4>
                       <span className="text-xs text-emerald-600 font-medium">M-Pesa, Cash, SHIF claims</span>
                     </div>
                     <div className="bg-emerald-50 p-3 rounded-lg text-emerald-600">
@@ -2083,7 +2083,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-500 uppercase">Consultation Fee (KES)</label>
+                          <label className="block text-xs font-bold text-slate-500 uppercase">Consultation Fee (KSh)</label>
                           <input 
                             type="number" 
                             value={appConsultationFee}
@@ -2196,7 +2196,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           }`}
                         >
                           <div className="flex justify-between items-center">
-                            <span className="font-mono text-[10px] font-bold text-slate-400">POS {app.queueNumber} {app.consultationFee !== undefined && `• KES ${app.consultationFee}`}</span>
+                            <span className="font-mono text-[10px] font-bold text-slate-400">POS {app.queueNumber} {app.consultationFee !== undefined && `• KSh ${app.consultationFee}`}</span>
                             <span className="text-[10px] font-bold text-indigo-600">{app.timeSlot}</span>
                           </div>
                           <h4 className="font-extrabold text-sm text-slate-800 mt-1">{app.patientName}</h4>
@@ -2821,7 +2821,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase">Unit Price (KES)</label>
+                              <label className="block text-xs font-bold text-slate-500 uppercase">Unit Price (KSh)</label>
                               <input 
                                 type="number" 
                                 value={drugPrice} 
@@ -2862,7 +2862,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                         <div key={drug.id} className="p-2.5 rounded-lg border border-slate-100 text-xs flex justify-between items-center bg-slate-50 hover:bg-white hover:border-slate-200 hover:shadow-xs transition-all group">
                           <div>
                             <span className="block font-bold text-slate-800">{drug.drugName}</span>
-                            <span className="block text-slate-500 mt-0.5">Unit Price: KES {drug.unitPrice}</span>
+                            <span className="block text-slate-500 mt-0.5">Unit Price: KSh {drug.unitPrice}</span>
                           </div>
                           <div className="flex items-center space-x-2.5">
                             <div className="text-right">
@@ -2931,12 +2931,12 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                               <td className="py-3.5 px-4 font-mono text-xs text-slate-500">{bill.id}</td>
                               <td className="py-3.5 px-4 font-bold text-slate-800">{bill.patientName}</td>
                               <td className="py-3.5 px-4 text-xs text-slate-500">{bill.invoiceDate}</td>
-                              <td className="py-3.5 px-4 font-bold">KES {bill.totalAmount.toLocaleString()}</td>
+                              <td className="py-3.5 px-4 font-bold">KSh {bill.totalAmount.toLocaleString()}</td>
                               <td className="py-3.5 px-4 text-indigo-700 font-semibold">
-                                {bill.insuranceClaimed > 0 ? `KES ${bill.insuranceClaimed.toLocaleString()}` : '-'}
+                                {bill.insuranceClaimed > 0 ? `KSh ${bill.insuranceClaimed.toLocaleString()}` : '-'}
                               </td>
                               <td className="py-3.5 px-4 font-medium text-emerald-700">
-                                KES {bill.patientPaid.toLocaleString()}
+                                KSh {bill.patientPaid.toLocaleString()}
                               </td>
                               <td className="py-3.5 px-4">
                                 <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
@@ -3010,17 +3010,17 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                         </div>
                         <div className="flex justify-between">
                           <span className="text-slate-500">Total Invoice Charge</span>
-                          <span className="font-black text-slate-800">KES {selectedBilling.totalAmount.toLocaleString()}</span>
+                          <span className="font-black text-slate-800">KSh {selectedBilling.totalAmount.toLocaleString()}</span>
                         </div>
                         {selectedBilling.insuranceClaimed > 0 && (
                           <div className="flex justify-between text-indigo-700 font-semibold">
                             <span>NHIF / SHIF Subsidy Covered</span>
-                            <span>- KES {selectedBilling.insuranceClaimed.toLocaleString()}</span>
+                            <span>- KSh {selectedBilling.insuranceClaimed.toLocaleString()}</span>
                           </div>
                         )}
                         <div className="flex justify-between text-emerald-700 font-bold border-t pt-1.5">
                           <span>Balance Outstanding</span>
-                          <span>KES {(selectedBilling.totalAmount - selectedBilling.insuranceClaimed - selectedBilling.patientPaid).toLocaleString()}</span>
+                          <span>KSh {(selectedBilling.totalAmount - selectedBilling.insuranceClaimed - selectedBilling.patientPaid).toLocaleString()}</span>
                         </div>
                       </div>
 
@@ -3038,7 +3038,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           </select>
                         </div>
                         <div>
-                          <label className="block font-bold text-slate-500 uppercase">Payment Amount Collect (KES)</label>
+                          <label className="block font-bold text-slate-500 uppercase">Payment Amount Collect (KSh)</label>
                           <input 
                             type="number" 
                             value={paidAmountInput} 
@@ -3269,20 +3269,20 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                     
                     <div className="h-44 flex items-end justify-center space-x-12 border-b border-slate-100 pb-2">
                       <div className="flex flex-col items-center">
-                        <span className="text-xs font-bold text-slate-700">KES {dailyPaidRevenue.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-slate-700">KSh {dailyPaidRevenue.toLocaleString()}</span>
                         <div className="w-16 bg-emerald-500 rounded-t-lg mt-2" style={{ height: dailyPaidRevenue > 0 ? '80px' : '4px' }} />
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-2">Patient Cash / M-Pesa</span>
                       </div>
 
                       <div className="flex flex-col items-center">
-                        <span className="text-xs font-bold text-indigo-700">KES {dailyInsuranceRevenue.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-indigo-700">KSh {dailyInsuranceRevenue.toLocaleString()}</span>
                         <div className="w-16 bg-indigo-500 rounded-t-lg mt-2" style={{ height: dailyInsuranceRevenue > 0 ? '50px' : '4px' }} />
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-2">Insurance NHIF/SHIF</span>
                       </div>
                     </div>
 
                     <div className="text-center">
-                      <p className="text-xs text-slate-500">Aggregate Yield: <strong className="text-slate-800 text-sm">KES {totalFinancialYield.toLocaleString()}</strong></p>
+                      <p className="text-xs text-slate-500">Aggregate Yield: <strong className="text-slate-800 text-sm">KSh {totalFinancialYield.toLocaleString()}</strong></p>
                     </div>
                   </div>
 
@@ -3722,7 +3722,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           <div className="space-y-1.5 text-[9px] text-slate-400">
                             <p><span className="font-semibold text-slate-600">Receipt Ref:</span> <span className="font-mono">REC-998273</span></p>
                             <p><span className="font-semibold text-slate-600">Patient:</span> <span className="text-slate-700 font-medium">John Doe (Demo)</span></p>
-                            <p><span className="font-semibold text-slate-600">Total Charged:</span> <span className="text-slate-800 font-bold text-xs">KES 3,500</span></p>
+                            <p><span className="font-semibold text-slate-600">Total Charged:</span> <span className="text-slate-800 font-bold text-xs">KSh 3,500</span></p>
                           </div>
 
                           <div className="border-t border-dashed border-slate-200 pt-3 text-center">
@@ -3941,17 +3941,17 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                         showReceipt.items.map((item, idx) => (
                           <tr key={idx} className="hover:bg-slate-50/50">
                             <td className="py-1.5 pr-1">{item.description}</td>
-                            <td className="py-1.5 text-right">KES {item.amount.toLocaleString()}</td>
+                            <td className="py-1.5 text-right">KSh {item.amount.toLocaleString()}</td>
                             <td className="py-1.5 text-center font-mono">{item.quantity}</td>
-                            <td className="py-1.5 text-right font-bold text-slate-900">KES {(item.amount * item.quantity).toLocaleString()}</td>
+                            <td className="py-1.5 text-right font-bold text-slate-900">KSh {(item.amount * item.quantity).toLocaleString()}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
                           <td className="py-1.5 font-medium">Standard Consultation Fee</td>
-                          <td className="py-1.5 text-right">KES {showReceipt.totalAmount.toLocaleString()}</td>
+                          <td className="py-1.5 text-right">KSh {showReceipt.totalAmount.toLocaleString()}</td>
                           <td className="py-1.5 text-center">1</td>
-                          <td className="py-1.5 text-right font-bold text-slate-900">KES {showReceipt.totalAmount.toLocaleString()}</td>
+                          <td className="py-1.5 text-right font-bold text-slate-900">KSh {showReceipt.totalAmount.toLocaleString()}</td>
                         </tr>
                       )}
                     </tbody>
@@ -3966,24 +3966,24 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                 }`}>
                   <div className="flex justify-between">
                     <span className="text-slate-400 font-medium">Total Invoice Amount:</span>
-                    <span className="font-semibold text-slate-800">KES {showReceipt.totalAmount.toLocaleString()}</span>
+                    <span className="font-semibold text-slate-800">KSh {showReceipt.totalAmount.toLocaleString()}</span>
                   </div>
                   {showReceipt.insuranceClaimed > 0 && (
                     <div className="flex justify-between text-indigo-700 font-semibold">
                       <span>SHIF / NHIF Cover Subsidy:</span>
-                      <span>- KES {showReceipt.insuranceClaimed.toLocaleString()}</span>
+                      <span>- KSh {showReceipt.insuranceClaimed.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-t pt-1.5 text-emerald-700">
                     <strong className="text-slate-800">Total Amount Paid:</strong>
                     <strong className={`font-black text-slate-900 ${
                       receiptFormat === 'thermal' ? 'text-xs' : 'text-base'
-                    }`}>KES {showReceipt.patientPaid.toLocaleString()}</strong>
+                    }`}>KSh {showReceipt.patientPaid.toLocaleString()}</strong>
                   </div>
                   <div className="flex justify-between border-t border-dashed pt-1 text-slate-500 text-[10px]">
                     <span>Outstanding Balance:</span>
                     <span className="font-mono font-bold">
-                      KES {Math.max(0, showReceipt.totalAmount - showReceipt.insuranceClaimed - showReceipt.patientPaid).toLocaleString()}
+                      KSh {Math.max(0, showReceipt.totalAmount - showReceipt.insuranceClaimed - showReceipt.patientPaid).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -4130,11 +4130,11 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-medium"
                         >
                           <option value="">-- Choose Consultation Type --</option>
-                          <option value="General Practitioner Consultation">GP Consultation (Default: KES 1,000)</option>
-                          <option value="Specialist Consultation">Specialist Consultation (Default: KES 3,000)</option>
-                          <option value="Pediatric Consultation">Pediatric Consultation (Default: KES 1,500)</option>
-                          <option value="Dental Consultation">Dental Consultation (Default: KES 1,500)</option>
-                          <option value="Other Consultation Fee">Other Consultation Fee (Default: KES 1,000)</option>
+                          <option value="General Practitioner Consultation">GP Consultation (Default: KSh 1,000)</option>
+                          <option value="Specialist Consultation">Specialist Consultation (Default: KSh 3,000)</option>
+                          <option value="Pediatric Consultation">Pediatric Consultation (Default: KSh 1,500)</option>
+                          <option value="Dental Consultation">Dental Consultation (Default: KSh 1,500)</option>
+                          <option value="Other Consultation Fee">Other Consultation Fee (Default: KSh 1,000)</option>
                         </select>
                       </>
                     )}
@@ -4150,7 +4150,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           <option value="">-- Choose Medicine from Stock --</option>
                           {stock.map(d => (
                             <option key={d.id} value={d.id}>
-                              {d.drugName} (Qty: {d.quantity} units remaining) - KES {(d.unitPrice * 10).toLocaleString()}/pack
+                              {d.drugName} (Qty: {d.quantity} units remaining) - KSh {(d.unitPrice * 10).toLocaleString()}/pack
                             </option>
                           ))}
                         </select>
@@ -4194,13 +4194,13 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-medium"
                         >
                           <option value="">-- Choose Common Laboratory Test --</option>
-                          <option value="Malaria Blood Smear">Malaria Blood Smear (KES 500)</option>
-                          <option value="Full Blood Count">Full Blood Count (KES 800)</option>
-                          <option value="Urinalysis">Urinalysis (KES 400)</option>
-                          <option value="Blood Glucose">Blood Glucose (KES 300)</option>
-                          <option value="Lipid Profile">Lipid Profile (KES 1,200)</option>
-                          <option value="Renal Function Test">Renal Function Test (KES 1,500)</option>
-                          <option value="Other Laboratory Test">Other Laboratory Test (KES 500)</option>
+                          <option value="Malaria Blood Smear">Malaria Blood Smear (KSh 500)</option>
+                          <option value="Full Blood Count">Full Blood Count (KSh 800)</option>
+                          <option value="Urinalysis">Urinalysis (KSh 400)</option>
+                          <option value="Blood Glucose">Blood Glucose (KSh 300)</option>
+                          <option value="Lipid Profile">Lipid Profile (KSh 1,200)</option>
+                          <option value="Renal Function Test">Renal Function Test (KSh 1,500)</option>
+                          <option value="Other Laboratory Test">Other Laboratory Test (KSh 500)</option>
                         </select>
                       </>
                     )}
@@ -4214,12 +4214,12 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-medium"
                         >
                           <option value="">-- Choose Radiology Scan --</option>
-                          <option value="Chest X-Ray">Chest X-Ray (KES 1,500)</option>
-                          <option value="Abdominal Ultrasound">Abdominal Ultrasound (KES 2,000)</option>
-                          <option value="Pelvic Scan">Pelvic Scan (KES 1,800)</option>
-                          <option value="CT Brain Scan">CT Brain Scan (KES 6,500)</option>
-                          <option value="MRI Scan">MRI Scan (KES 12,000)</option>
-                          <option value="Other Scan / Imaging">Other Scan / Imaging (KES 2,000)</option>
+                          <option value="Chest X-Ray">Chest X-Ray (KSh 1,500)</option>
+                          <option value="Abdominal Ultrasound">Abdominal Ultrasound (KSh 2,000)</option>
+                          <option value="Pelvic Scan">Pelvic Scan (KSh 1,800)</option>
+                          <option value="CT Brain Scan">CT Brain Scan (KSh 6,500)</option>
+                          <option value="MRI Scan">MRI Scan (KSh 12,000)</option>
+                          <option value="Other Scan / Imaging">Other Scan / Imaging (KSh 2,000)</option>
                         </select>
                       </>
                     )}
@@ -4233,10 +4233,10 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-medium"
                         >
                           <option value="">-- Choose Ward Bed Category --</option>
-                          <option value="General Ward">General Ward (Default: KES 1,000/day)</option>
-                          <option value="Maternity Ward">Maternity Ward (Default: KES 1,500/day)</option>
-                          <option value="ICU Ward">ICU Ward (Default: KES 3,000/day)</option>
-                          <option value="Pediatric Ward">Pediatric Ward (Default: KES 1,000/day)</option>
+                          <option value="General Ward">General Ward (Default: KSh 1,000/day)</option>
+                          <option value="Maternity Ward">Maternity Ward (Default: KSh 1,500/day)</option>
+                          <option value="ICU Ward">ICU Ward (Default: KSh 3,000/day)</option>
+                          <option value="Pediatric Ward">Pediatric Ward (Default: KSh 1,000/day)</option>
                         </select>
                       </>
                     )}
@@ -4250,11 +4250,11 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           className="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs text-slate-800 font-medium"
                         >
                           <option value="">-- Choose Theatre / Maternity Package --</option>
-                          <option value="Normal Delivery">Normal Delivery (Default: KES 15,000)</option>
-                          <option value="C-Section Delivery">C-Section Delivery (Default: KES 50,000)</option>
-                          <option value="Minor Surgery">Minor Surgery (Default: KES 10,000)</option>
-                          <option value="Major Surgery">Major Surgery (Default: KES 45,000)</option>
-                          <option value="Maternity Package">Maternity Package (Default: KES 25,000)</option>
+                          <option value="Normal Delivery">Normal Delivery (Default: KSh 15,000)</option>
+                          <option value="C-Section Delivery">C-Section Delivery (Default: KSh 50,000)</option>
+                          <option value="Minor Surgery">Minor Surgery (Default: KSh 10,000)</option>
+                          <option value="Major Surgery">Major Surgery (Default: KSh 45,000)</option>
+                          <option value="Maternity Package">Maternity Package (Default: KSh 25,000)</option>
                         </select>
                       </>
                     )}
@@ -4276,7 +4276,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                   {/* Pricing / Payment Override Input */}
                   <div className="md:col-span-3 space-y-1.5">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                      {selectedItemCategory === 'Ward' ? 'Rate per Day (KES)' : 'Payment / Unit (KES)'}
+                      {selectedItemCategory === 'Ward' ? 'Rate per Day (KSh)' : 'Payment / Unit (KSh)'}
                     </label>
                     {selectedItemCategory === 'Other' ? (
                       <input
@@ -4347,11 +4347,11 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                             <div className="flex items-center space-x-1.5 text-[10px] text-slate-500">
                               <span className="bg-slate-100 px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider">{item.category}</span>
                               <span>•</span>
-                              <span>KES {item.amount.toLocaleString()} × {item.quantity}</span>
+                              <span>KSh {item.amount.toLocaleString()} × {item.quantity}</span>
                             </div>
                           </div>
                           <div className="flex items-center space-x-3 flex-shrink-0">
-                            <span className="text-xs font-bold text-slate-900 font-mono">KES {(item.amount * item.quantity).toLocaleString()}</span>
+                            <span className="text-xs font-bold text-slate-900 font-mono">KSh {(item.amount * item.quantity).toLocaleString()}</span>
                             <button
                               type="button"
                               onClick={() => handleRemoveOrderItem(item.id)}
@@ -4371,7 +4371,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Estimated Total Cost</span>
                         <strong className="text-lg font-black text-emerald-400 font-mono">
-                          KES {orderItems.reduce((acc, curr) => acc + (curr.amount * curr.quantity), 0).toLocaleString()}
+                          KSh {orderItems.reduce((acc, curr) => acc + (curr.amount * curr.quantity), 0).toLocaleString()}
                         </strong>
                       </div>
                       <div className="text-right text-[10px] text-slate-300 font-medium">
@@ -4381,10 +4381,10 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           const total = orderItems.reduce((acc, curr) => acc + (curr.amount * curr.quantity), 0);
                           if (patientObj.insuranceType === 'NHIF' || patientObj.insuranceType === 'SHIF') {
                             const cov = Math.min(total, 3000);
-                            return `Insurance Status: ${patientObj.insuranceType} • Cover: KES ${cov.toLocaleString()} • Pay: KES ${(total - cov).toLocaleString()}`;
+                            return `Insurance Status: ${patientObj.insuranceType} • Cover: KSh ${cov.toLocaleString()} • Pay: KSh ${(total - cov).toLocaleString()}`;
                           } else if (patientObj.insuranceType === 'Private') {
                             const cov = Math.round(total * 0.8);
-                            return `Insurance Status: Private (80%) • Cover: KES ${cov.toLocaleString()} • Pay: KES ${(total - cov).toLocaleString()}`;
+                            return `Insurance Status: Private (80%) • Cover: KSh ${cov.toLocaleString()} • Pay: KSh ${(total - cov).toLocaleString()}`;
                           } else {
                             return "Insurance Status: Out-of-pocket (Full Self-Pay)";
                           }

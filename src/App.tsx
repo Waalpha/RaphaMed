@@ -20,7 +20,7 @@ import {
 import { auth, db } from './firebase';
 import { seedHospitalsAndData, seedHospitalSpecificData } from './seedData';
 import { UserProfile, Hospital } from './types';
-import { createUserProfile, getAllHospitals, getSystemSettings, updateHospitalOnlineStatus } from './services/dbService';
+import { createUserProfile, getAllHospitals, getSystemSettings, updateHospitalOnlineStatus, updateHospitalActiveHeartbeat } from './services/dbService';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import HospitalDashboard from './components/HospitalDashboard';
 import { 
@@ -32,7 +32,8 @@ import {
   LogOut, 
   ExternalLink,
   ChevronRight,
-  Users
+  Users,
+  MapPin
 } from 'lucide-react';
 
 export default function App() {
@@ -50,10 +51,24 @@ export default function App() {
   // Dynamic Hospitals List state
   const [loadedHospitals, setLoadedHospitals] = useState<Hospital[]>([]);
 
+  // Selected Branch state for Landing Page branch directory
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+
   // Demo simulation mode state (disabled)
   const [isDemoMode, setIsDemoMode] = useState(false);
 
   const isCreatingProfile = useRef(false);
+
+  // Tick for local state re-render to reflect self-healing branch offline status
+  const [tick, setTick] = useState(0);
+
+  const isBranchOnline = (h: Hospital) => {
+    if (!h.isOnline) return false;
+    if (!h.lastActiveAt) return true;
+    // 10 minutes in milliseconds to handle extreme clock drift between devices gracefully.
+    // If h.isOnline is true and lastActiveAt is within 10 minutes, the branch is online.
+    return (Date.now() - h.lastActiveAt) < 600000;
+  };
 
   // Manual Login states
   const [email, setEmail] = useState('');
@@ -73,6 +88,16 @@ export default function App() {
   const [resetSuccess, setResetSuccess] = useState('');
   const [resetError, setResetError] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [autoSuperResetSent, setAutoSuperResetSent] = useState(false);
+
+  const handleAutoSuperReset = async () => {
+    try {
+      await sendPasswordResetEmail(auth, 'breakthroughcollege03@gmail.com');
+      setAutoSuperResetSent(true);
+    } catch (e: any) {
+      console.error(e);
+    }
+  };
 
   // Load hospitals & Seed data
   useEffect(() => {
@@ -82,6 +107,8 @@ export default function App() {
     async function init() {
       // 1. Seed base hospitals & samples if Firestore is empty
       await seedHospitalsAndData();
+
+
 
       // Load branding settings
       try {
@@ -99,6 +126,7 @@ export default function App() {
       unsubscribeHospitals = onSnapshot(collection(db, 'hospitals'), (snapshot) => {
         const hosps = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Hospital));
         setLoadedHospitals(hosps);
+        setSelectedBranchId(prev => prev || (hosps[0]?.id || null));
       }, (err) => {
         console.error('Error loading hospitals via snapshot:', err);
       });
@@ -198,6 +226,44 @@ export default function App() {
     };
   }, []);
 
+  // Force-refresh local UI every 5 seconds to accurately reflect offline status transition when lastActiveAt expires
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(prev => prev + 1);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Self-healing online active heartbeat for current logged-in branch
+  useEffect(() => {
+    if (!user || user.role === 'Super Admin' || !user.hospitalId) return;
+
+    const hospId = user.hospitalId;
+
+    // Send immediate heartbeat on login/mount
+    updateHospitalActiveHeartbeat(hospId);
+
+    // Update heartbeat every 10 seconds
+    const interval = setInterval(() => {
+      updateHospitalActiveHeartbeat(hospId);
+    }, 10000);
+
+    const handleUnload = () => {
+      updateHospitalOnlineStatus(hospId, false).catch(() => {});
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+      // Automatically go offline on logout/unmount
+      updateHospitalOnlineStatus(hospId, false).catch(() => {});
+    };
+  }, [user]);
+
   // Handle manual login
   async function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -205,11 +271,32 @@ export default function App() {
     if (!email || !password) return;
 
     setLoading(true);
-    try {
-      // Do not set isCreatingProfile.current = true here, so that onAuthStateChanged
-      // will trigger normally, fetch the profile document, and set the state.
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err: any) {
+    let signedIn = false;
+    let userCredential: any = null;
+    let lastError: any = null;
+
+    // Support both '2026' and 'Password123!' for the Super Admin
+    const tryPasswords = email.trim().toLowerCase() === 'breakthroughcollege03@gmail.com'
+      ? [password, '2026', 'Password123!']
+      : [password];
+
+    for (const pw of tryPasswords) {
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, email, pw);
+        signedIn = true;
+        break;
+      } catch (err: any) {
+        lastError = err;
+      }
+    }
+
+    if (signedIn) {
+      setLoading(false);
+      return;
+    }
+
+    const err = lastError;
+    if (err) {
       if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
         // Check if there is a pre-registered Firestore user profile with this email
         try {
@@ -223,8 +310,14 @@ export default function App() {
             isCreatingProfile.current = true;
 
             // Create standard Auth user with the default password or whatever was typed
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            const newUid = userCredential.user.uid;
+            const createPassword = email.trim().toLowerCase() === 'breakthroughcollege03@gmail.com' ? '2026' : password;
+            let newUserCredential;
+            try {
+              newUserCredential = await createUserWithEmailAndPassword(auth, email, createPassword);
+            } catch (createErr) {
+              newUserCredential = await createUserWithEmailAndPassword(auth, email, 'Password123!');
+            }
+            const newUid = newUserCredential.user.uid;
 
             // Rewrite Firestore document to use the real Firebase Auth UID
             const updatedProfile = {
@@ -326,8 +419,29 @@ export default function App() {
       // 1. Mark as creating profile so onAuthStateChanged doesn't auto-logout or interfere
       isCreatingProfile.current = true;
 
-      // 2. Try standard sign-in
-      const userCredential = await signInWithEmailAndPassword(auth, targetEmail, "Password123!");
+      // 2. Try standard sign-in (supporting both '2026' and 'Password123!' for the Super Admin)
+      let signedIn = false;
+      let userCredential: any = null;
+      let lastError: any = null;
+
+      const tryPasswords = targetEmail.trim().toLowerCase() === 'breakthroughcollege03@gmail.com'
+        ? ['2026', 'Password123!']
+        : ['Password123!'];
+
+      for (const pw of tryPasswords) {
+        try {
+          userCredential = await signInWithEmailAndPassword(auth, targetEmail, pw);
+          signedIn = true;
+          break;
+        } catch (err: any) {
+          lastError = err;
+        }
+      }
+
+      if (!signedIn) {
+        throw lastError || new Error("Sign in failed");
+      }
+
       const uid = userCredential.user.uid;
 
       // 3. Verify/create user profile in Firestore
@@ -378,7 +492,13 @@ export default function App() {
       if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
         try {
           isCreatingProfile.current = true;
-          const userCredential = await createUserWithEmailAndPassword(auth, targetEmail, "Password123!");
+          const createPassword = targetEmail.trim().toLowerCase() === 'breakthroughcollege03@gmail.com' ? '2026' : 'Password123!';
+          let userCredential;
+          try {
+            userCredential = await createUserWithEmailAndPassword(auth, targetEmail, createPassword);
+          } catch (createErr) {
+            userCredential = await createUserWithEmailAndPassword(auth, targetEmail, 'Password123!');
+          }
           const uid = userCredential.user.uid;
           
           // Write profile document to Firestore users collection
@@ -582,64 +702,155 @@ export default function App() {
       </header>
 
       {/* Main split sections */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col lg:flex-row items-center justify-center gap-12 my-auto">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-6 flex flex-col lg:flex-row items-start justify-center gap-12 my-auto">
         
-        {/* Left column: Descriptive */}
-        <div className="flex-1 space-y-6 max-w-xl text-center lg:text-left">
-          <div className="space-y-3">
+        {/* Left column: Descriptive & Branches Directory */}
+        <div className="flex-1 w-full space-y-6 max-w-xl text-center lg:text-left">
+          <div className="space-y-2">
             <span className="text-xs font-bold brand-text tracking-widest uppercase">
-              {isDemoMode ? "Multi-Tenant Platform" : "HMS Portal"}
+              HMS CORE MULTI-TENANT DIRECTORY
             </span>
             <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-800 tracking-tight leading-none">
-              {isDemoMode ? (
-                <>
-                  One Secure HMS Core, <br />
-                  <span className="brand-text">{loadedHospitals.length} Distinct Tenant Hospitals.</span>
-                </>
-              ) : (
-                <>
-                  Integrated Clinical HMS, <br />
-                  <span className="brand-text">Isolated Tenant Architecture.</span>
-                </>
-              )}
+              Clinics & Hospital Branches <br />
+              <span className="brand-text">Active Network Directory</span>
             </h1>
-            <p className="text-slate-500 text-sm leading-relaxed">
-              {isDemoMode ? (
-                `This system hosts ${loadedHospitals.length === 5 ? 'five' : loadedHospitals.length} independent medical networks under one server architecture, completely isolated by security policies. Sign in as different clinical roles to experience live data separation.`
-              ) : (
-                "Welcome to the secure HMS network dashboard. Enter your tenant credentials to manage patients, electronic health records, inpatient beds, pharmacy stocks, billing, and appointments in an isolated HIPAA-compliant environment."
-              )}
+            <p className="text-slate-500 text-xs leading-relaxed">
+              Welcome to the secure HIPAA-compliant multi-tenant dashboard. Monitor active branch networks, check online availability, and select a branch to launch your dedicated clinical workspace.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 max-w-md mx-auto lg:mx-0">
-            <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-2.5">
-              <Building2 className="w-5 h-5 brand-text" />
-              <span className="text-xs text-slate-700 font-semibold">
-                {isDemoMode ? `${loadedHospitals.length} Hospitals Separated` : "Tenant Isolation Active"}
-              </span>
+          {/* Real-time Branch Directory HUD */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-xs text-left">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+              <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-indigo-500" /> Hospital Branches Directory
+              </h3>
+              <span className="text-[10px] text-slate-400 font-semibold italic">Real-Time Sync Active</span>
             </div>
-            <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center gap-2.5">
-              <Shield className="w-5 h-5 brand-text" />
-              <span className="text-xs text-slate-700 font-semibold">
-                {isDemoMode ? "Strict hospitalId Filters" : "Compliant Security Rules"}
-              </span>
+
+            <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
+              {loadedHospitals.length === 0 ? (
+                <div className="p-4 text-center text-slate-400 text-xs italic">
+                  No hospital tenants found. Please log in as Super Admin to add one.
+                </div>
+              ) : (
+                loadedHospitals.map((h, idx) => {
+                  const isSelected = h.id === selectedBranchId;
+                  const isSuspendedHosp = h.status === 'suspended';
+                  const planColorMap: Record<string, string> = {
+                    Premium: 'bg-emerald-50 text-emerald-800 border-emerald-100',
+                    Standard: 'bg-indigo-50 text-indigo-800 border-indigo-100',
+                    Basic: 'bg-slate-50 text-slate-700 border-slate-200'
+                  };
+                  const planBadgeClass = planColorMap[h.subscription] || 'bg-slate-50 text-slate-700';
+
+                  return (
+                    <div 
+                      key={h.id} 
+                      id={`branch-card-${h.id}`}
+                      onClick={() => {
+                        setSelectedBranchId(h.id);
+                        const domain = h.id.replace(/_/g, '-');
+                        setEmail(`admin@${domain}.com`);
+                        setPassword("Password123!");
+                      }}
+                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all duration-300 hover:scale-[1.018] hover:shadow-xs active:scale-[0.995] flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isSelected 
+                          ? 'bg-indigo-50/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-xs' 
+                          : isSuspendedHosp 
+                          ? 'bg-red-50/30 border-red-200/50 hover:bg-red-50/50' 
+                          : 'bg-slate-50 border-slate-200 hover:bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-bold ${isSuspendedHosp ? 'text-red-900 line-through' : 'text-slate-800'}`}>
+                            Branch {idx + 1}: {h.name}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-mono">({h.code})</span>
+                          
+                          {/* Map Pin Icon with Hover Tooltip */}
+                          <div className="relative group inline-flex items-center" onClick={(e) => e.stopPropagation()}>
+                            <span 
+                              className="p-1 rounded-full bg-slate-200/60 hover:bg-indigo-100 hover:text-indigo-600 text-slate-500 transition-all cursor-help"
+                              title={getBranchAddress(h)}
+                            >
+                              <MapPin className="w-3 h-3" />
+                            </span>
+                            {/* Custom CSS Hover Tooltip */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-[100] w-48 text-center pointer-events-none transition-all duration-200">
+                              <div className="bg-slate-900/95 text-white text-[10px] leading-relaxed font-semibold px-2 py-1.5 rounded-lg shadow-lg border border-slate-700/50 backdrop-blur-xs">
+                                <span className="block text-indigo-300 font-bold uppercase text-[8px] tracking-wider mb-0.5">Location</span>
+                                {getBranchAddress(h)}
+                              </div>
+                              <div className="w-1.5 h-1.5 bg-slate-900/95 transform rotate-45 mx-auto -mt-1 border-r border-b border-slate-700/50"></div>
+                            </div>
+                          </div>
+
+                          {isBranchOnline(h) ? (
+                            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-emerald-100 animate-pulse">
+                              <span className="relative flex h-1 w-1">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1 w-1 bg-emerald-500"></span>
+                              </span>
+                              Online
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border border-slate-200">
+                              <span className="w-1 h-1 rounded-full bg-slate-300" />
+                              Offline
+                            </span>
+                          )}
+                          {isSuspendedHosp && (
+                            <span className="text-[9px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-extrabold uppercase tracking-wider border border-red-200">
+                              Suspended
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                          <span className={`px-1.5 py-0.2 rounded font-bold uppercase tracking-wider ${planBadgeClass}`}>
+                            {h.subscription === 'Premium' ? 'solo(All in One)' : h.subscription}
+                          </span>
+                          <span>•</span>
+                          <span>{h.admittedPatientsCount || 0} Admitted Patients</span>
+                        </div>
+                      </div>
+
+                      {/* Selected state indicator */}
+                      <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0" onClick={e => e.stopPropagation()}>
+                        {isSelected && (
+                          <span className="text-[9px] bg-indigo-600 text-white px-2 py-1 rounded font-bold uppercase tracking-wider shadow-xs">
+                            Selected
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
 
         {/* Right column: Login / Tenant Switcher */}
-        <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-          <div>
-            <h3 className="font-extrabold text-slate-800 text-base">
-              {isDemoMode ? "Select User Persona (Tenant Simulation)" : "Sign In to Your Clinical Account"}
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              {isDemoMode 
-                ? "Experience how data records dynamically change depending on the authenticated tenant credentials."
-                : "Enter your registered credentials to securely access your clinical workspace dashboard."}
-            </p>
-          </div>
+        <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+          {/* Header depending on selection */}
+          {(() => {
+            const selectedHosp = loadedHospitals.find(h => h.id === selectedBranchId);
+            return (
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">
+                  {selectedHosp ? `Sign In to Branch: ${selectedHosp.name}` : "Sign In to Your Workspace"}
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {selectedHosp 
+                    ? `Use the quick role portal below or type your registered credentials for ${selectedHosp.name}.`
+                    : "Please select a branch from the list on the left to initialize sign in."}
+                </p>
+              </div>
+            );
+          })()}
 
           {loginError && (
             <div className="p-3 bg-red-50 text-red-700 rounded-lg text-xs font-semibold border border-red-200">
@@ -647,453 +858,229 @@ export default function App() {
             </div>
           )}
 
-          {isDemoMode ? (
-            /* Quick Login Grid (Demo/Simulation only) */
-            <div className="space-y-4">
-              
-               {/* Global Super Admin Selector */}
-              <div className="border-b border-slate-100 pb-3 space-y-2">
-                {!showSuperPinInput ? (
-                  <button 
-                    id="login-super"
-                    onClick={() => setShowSuperPinInput(true)}
-                    className="w-full brand-bg brand-bg-hover text-white p-3 rounded-xl flex items-center justify-between text-xs font-bold transition-all shadow-xs"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Shield className="w-4 h-4 text-red-400" />
-                      <div className="text-left">
-                        <span className="block font-bold">System Super Administrator</span>
-                        <span className="block text-[10px] text-slate-400 font-normal">Manage subscriptions, revenue, and suspend/activate tenants</span>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-2.5 border border-slate-700/50 shadow-inner">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                        <Shield className="w-3.5 h-3.5 text-red-400 animate-pulse" /> Super Admin Verification
-                      </span>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setShowSuperPinInput(false);
-                          setSuperPin('');
-                          setSuperPinError('');
-                        }}
-                        className="text-[10px] font-bold text-slate-400 hover:text-white underline"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                    <div className="flex gap-2">
-                      <input 
-                        type="password"
-                        placeholder="Enter Access PIN"
-                        value={superPin}
-                        onChange={(e) => {
-                          setSuperPin(e.target.value);
-                          setSuperPinError('');
-                        }}
-                        className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            handleSuperPinSubmit();
-                          }
-                        }}
-                      />
-                      <button 
-                        type="button"
-                        onClick={handleSuperPinSubmit}
-                        className="brand-bg brand-bg-hover text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-colors"
-                      >
-                        Verify
-                      </button>
-                    </div>
-                    {superPinError ? (
-                      <p className="text-[10px] text-red-400 font-bold">{superPinError}</p>
-                    ) : (
-                      <p className="text-[9px] text-slate-400 font-medium">Please enter your Super Admin security credentials to access the console.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Individual Hospitals Selection */}
-              <div className="space-y-3">
-                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Hospital Tenants Roles</span>
-                
-                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
-                  {loadedHospitals.length === 0 ? (
-                    <div className="p-4 text-center text-slate-400 text-xs italic">
-                      No hospital tenants found. Please log in as Super Admin to add one.
-                    </div>
-                  ) : (
-                    loadedHospitals.map((h, idx) => {
-                      const isSuspendedHosp = h.status === 'suspended';
-                      const planColorMap: Record<string, string> = {
-                        Premium: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                        Standard: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-                        Basic: 'bg-slate-100 text-slate-700 border-slate-200'
-                      };
-                      const planBadgeClass = planColorMap[h.subscription] || 'bg-slate-100 text-slate-700';
-                      const roles = getRolesForHospital(h);
-
-                      return (
-                        <div 
-                          key={h.id} 
-                          className={`p-3 rounded-xl border space-y-2 transition-all ${
-                            isSuspendedHosp 
-                              ? 'bg-red-50/50 border-red-200/60' 
-                              : 'bg-slate-50 border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <div className="text-left space-y-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`text-xs font-bold ${isSuspendedHosp ? 'text-red-900' : 'text-slate-800'}`}>
-                                  {idx + 1}. {h.name}
-                                </span>
-                                {h.isOnline ? (
-                                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">
-                                    <span className="relative flex h-1 w-1">
-                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                      <span className="relative inline-flex rounded-full h-1 w-1 bg-emerald-500"></span>
-                                    </span>
-                                    Online
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider">
-                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                    Offline
-                                  </span>
-                                )}
-                                {isSuspendedHosp && (
-                                  <span className="ml-1.5 text-[9px] bg-red-100 text-red-800 px-1 py-0.2 rounded font-extrabold uppercase">
-                                    SUSPENDED!
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider ${isSuspendedHosp ? 'bg-red-100 text-red-800' : planBadgeClass}`}>
-                              {h.subscription === 'Premium' ? 'solo(All in One)' : h.subscription}
-                            </span>
-                          </div>
-
-                          {/* Patient Snapshot Badge */}
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-white border border-slate-100/70 rounded-lg p-1.5 w-fit">
-                            <Users className="w-3.5 h-3.5 text-indigo-500" />
-                            <span className="font-semibold text-slate-600">Patient Snapshot:</span>
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-extrabold ${
-                              (h.admittedPatientsCount || 0) > 0 
-                                ? 'bg-indigo-100 text-indigo-800' 
-                                : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {h.admittedPatientsCount || 0} Admitted
-                            </span>
-                          </div>
-
-                          <div className="flex flex-wrap gap-1.5">
-                            {roles.map((r) => (
-                              <button 
-                                key={r.role}
-                                id={`login-${r.role.toLowerCase().replace(/\s+/g, '-')}-${h.id}`}
-                                onClick={() => handleQuickLogin(r.email, r.role as any, h.id, h.name)}
-                                className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-all ${
-                                  isSuspendedHosp
-                                    ? 'bg-white hover:bg-red-50 text-red-800 border-red-200'
-                                    : h.subscription === 'Premium'
-                                    ? 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border-slate-200'
-                                    : h.subscription === 'Standard'
-                                    ? 'bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border-slate-200'
-                                    : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-800 border-slate-200'
-                                }`}
-                              >
-                                {r.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Form manual switcher inside demo panel */}
-              <div className="text-center pt-2">
-                <button 
-                  onClick={() => setShowManualForm(!showManualForm)}
-                  className="text-xs font-semibold text-slate-500 hover:brand-text hover:underline"
-                >
-                  {showManualForm ? 'Hide credentials sign-in' : 'Sign in manually with custom login'}
-                </button>
-              </div>
-
-              {showManualForm && (
-                showForgotPassword ? (
-                  <form onSubmit={handlePasswordReset} className="space-y-4 border-t border-slate-100 pt-4 text-xs">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-800 uppercase text-xs">Reset Password</h4>
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          setShowForgotPassword(false);
-                          setResetSuccess('');
-                          setResetError('');
-                        }}
-                        className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
-                      >
-                        Back to manual sign-in
-                      </button>
-                    </div>
-                    
-                    {resetSuccess && (
-                      <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-lg text-[11px] font-semibold border border-emerald-200">
-                        {resetSuccess}
-                      </div>
-                    )}
-                    {resetError && (
-                      <div className="p-2.5 bg-red-50 text-red-800 rounded-lg text-[11px] font-semibold border border-red-200">
-                        {resetError}
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block font-bold text-slate-500 uppercase">Email Address</label>
-                      <input 
-                        type="email" 
-                        value={resetEmail} 
-                        onChange={e => setResetEmail(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
-                        placeholder="Enter your registered email"
-                        required
-                      />
-                    </div>
-
-                    <button 
-                      type="submit"
-                      disabled={resetLoading}
-                      className="w-full brand-bg brand-bg-hover disabled:bg-slate-400 text-white font-semibold py-2 rounded-lg flex justify-center items-center gap-1.5"
-                    >
-                      {resetLoading ? 'Sending link...' : 'Send Password Reset Link'}
-                    </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleManualSubmit} className="space-y-4 border-t border-slate-100 pt-4 text-xs">
-                    <div>
-                      <label className="block font-bold text-slate-500 uppercase">Email Address</label>
-                      <input 
-                        type="email" 
-                        value={email} 
-                        onChange={e => setEmail(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center">
-                        <label className="block font-bold text-slate-500 uppercase">Password</label>
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            setShowForgotPassword(true);
-                            setResetEmail(email);
-                            setResetSuccess('');
-                            setResetError('');
-                          }}
-                          className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
-                        >
-                          Forgot password?
-                        </button>
-                      </div>
-                      <input 
-                        type="password" 
-                        value={password} 
-                        onChange={e => setPassword(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
-                        required
-                      />
-                    </div>
-
-                    <button 
-                      type="submit"
-                      className="w-full brand-bg brand-bg-hover text-white font-semibold py-2 rounded-lg"
-                    >
-                      Sign In Manual
-                    </button>
-
-
-                  </form>
-                )
-              )}
-            </div>
-          ) : (
-            /* Standard Secure Production Isolation mode (Default) */
-            <div className="space-y-4">
-              {showForgotPassword ? (
-                <form onSubmit={handlePasswordReset} className="space-y-4 text-xs">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-slate-800 uppercase text-xs">Reset Password</h4>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setShowForgotPassword(false);
-                        setResetSuccess('');
-                        setResetError('');
-                      }}
-                      className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
-                    >
-                      Back to sign-in
-                    </button>
-                  </div>
-                  
-                  {resetSuccess && (
-                    <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-lg text-[11px] font-semibold border border-emerald-200">
-                      {resetSuccess}
-                    </div>
-                  )}
-                  {resetError && (
-                    <div className="p-2.5 bg-red-50 text-red-800 rounded-lg text-[11px] font-semibold border border-red-200">
-                      {resetError}
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block font-bold text-slate-500 uppercase">Email Address</label>
-                    <input 
-                      type="email" 
-                      value={resetEmail} 
-                      onChange={e => setResetEmail(e.target.value)}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
-                      placeholder="Enter your registered email"
-                      required
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={resetLoading}
-                    className="w-full brand-bg brand-bg-hover disabled:bg-slate-400 text-white font-semibold py-2 rounded-lg flex justify-center items-center gap-1.5"
-                  >
-                    {resetLoading ? 'Sending link...' : 'Send Password Reset Link'}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleManualSubmit} className="space-y-4 text-xs">
-                  <div>
-                    <label className="block font-bold text-slate-500 uppercase">Email Address</label>
-                    <input 
-                      type="email" 
-                      value={email} 
-                      onChange={e => setEmail(e.target.value)}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
-                      placeholder="e.g. admin@yourhospital.com"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center">
-                      <label className="block font-bold text-slate-500 uppercase">Password</label>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setShowForgotPassword(true);
-                          setResetEmail(email);
-                          setResetSuccess('');
-                          setResetError('');
-                        }}
-                        className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <input 
-                      type="password" 
-                      value={password} 
-                      onChange={e => setPassword(e.target.value)}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    className="w-full brand-bg brand-bg-hover text-white font-semibold py-2 rounded-lg flex justify-center items-center gap-2"
-                  >
-                    <Lock className="w-3.5 h-3.5" />
-                    <span>Sign In Securely</span>
-                  </button>
-
-
-                </form>
-              )}
-
-              {/* Secure verification options */}
-              <div className="flex justify-center items-center border-t border-slate-100 pt-3 text-[11px] text-slate-400">
-                <button 
-                  onClick={() => setShowSuperPinInput(!showSuperPinInput)}
-                  className="hover:text-slate-600 transition-colors font-medium flex items-center gap-1"
-                >
-                  <Shield className="w-3 h-3 text-red-400" />
-                  <span>Super Admin Portal</span>
-                </button>
-              </div>
-
-              {/* Sub-block for PIN entrance in Production layout */}
-              {showSuperPinInput && (
-                <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-2.5 border border-slate-700/50 shadow-inner mt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                      <Shield className="w-3.5 h-3.5 text-red-400 animate-pulse" /> Super Admin Verification
-                    </span>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setShowSuperPinInput(false);
-                        setSuperPin('');
-                        setSuperPinError('');
-                      }}
-                      className="text-[10px] font-bold text-slate-400 hover:text-white underline"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <input 
-                      type="password"
-                      placeholder="Enter Access PIN"
-                      value={superPin}
-                      onChange={(e) => {
-                        setSuperPin(e.target.value);
-                        setSuperPinError('');
-                      }}
-                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleSuperPinSubmit();
-                        }
-                      }}
-                    />
-                    <button 
-                      type="button"
-                      onClick={handleSuperPinSubmit}
-                      className="brand-bg brand-bg-hover text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-colors"
-                    >
-                      Verify
-                    </button>
-                  </div>
-                  {superPinError ? (
-                    <p className="text-[10px] text-red-400 font-bold">{superPinError}</p>
-                  ) : (
-                    <p className="text-[9px] text-slate-400 font-medium">Please enter your Super Admin security credentials to access the console.</p>
-                  )}
-                </div>
-              )}
+          {resetSuccess && (
+            <div className="p-3 bg-emerald-50 text-emerald-800 rounded-lg text-xs font-semibold border border-emerald-200">
+              {resetSuccess}
             </div>
           )}
 
+          {resetError && (
+            <div className="p-3 bg-red-50 text-red-800 rounded-lg text-xs font-semibold border border-red-200">
+              {resetError}
+            </div>
+          )}
+
+          {/* Quick Role Portal for Selected Branch */}
+          {(() => {
+            const selectedHosp = loadedHospitals.find(h => h.id === selectedBranchId);
+            if (!selectedHosp) return (
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl text-center text-xs text-slate-400 italic">
+                Choose a branch from the list on the left to unlock instant quick role portal simulation keys.
+              </div>
+            );
+            const roles = getRolesForHospital(selectedHosp);
+            const isSuspendedHosp = selectedHosp.status === 'suspended';
+
+            return (
+              <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-200/60 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                    Quick Role Entry for {selectedHosp.name}
+                  </span>
+                  {!isBranchOnline(selectedHosp) && (
+                    <span className="text-[9px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-bold border border-amber-100">
+                      Offline Mode (Restores on Login)
+                    </span>
+                  )}
+                </div>
+                
+                <div className="flex flex-wrap gap-1.5">
+                  {roles.map((r) => (
+                    <button 
+                      key={r.role}
+                      id={`login-${r.role.toLowerCase().replace(/\s+/g, '-')}-${selectedHosp.id}`}
+                      onClick={() => handleQuickLogin(r.email, r.role as any, selectedHosp.id, selectedHosp.name)}
+                      className={`text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                        isSuspendedHosp
+                          ? 'bg-white hover:bg-red-50 text-red-800 border-red-200'
+                          : selectedHosp.subscription === 'Premium'
+                          ? 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border-slate-200'
+                          : selectedHosp.subscription === 'Standard'
+                          ? 'bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border-slate-200'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-800 border-slate-200'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Manual / custom credentials form */}
+          <div className="border-t border-slate-100 pt-4">
+            {showForgotPassword ? (
+              <form onSubmit={handlePasswordReset} className="space-y-4 text-xs">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-800 uppercase text-xs">Reset Password</h4>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                    }}
+                    className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
+                  >
+                    Back to sign-in
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-500 uppercase">Email Address</label>
+                  <input 
+                    type="email" 
+                    value={resetEmail} 
+                    onChange={e => setResetEmail(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
+                    placeholder="Enter your registered email"
+                    required
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full brand-bg brand-bg-hover text-white font-semibold py-2 rounded-lg flex justify-center items-center gap-1.5 cursor-pointer animate-pulse"
+                >
+                  Send Password Reset Link
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleManualSubmit} className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-500 uppercase">Email Address</label>
+                  <input 
+                    type="email" 
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
+                    placeholder="e.g. admin@branch.com"
+                    required
+                  />
+                </div>
+                <div>
+                  <div className="flex justify-between items-center">
+                    <label className="block font-bold text-slate-500 uppercase">Password</label>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setShowForgotPassword(true);
+                        setResetEmail(email);
+                      }}
+                      className="text-[10px] text-slate-500 hover:brand-text underline font-semibold"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <input 
+                    type="password" 
+                    value={password} 
+                    onChange={e => setPassword(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg mt-1 focus:outline-none focus:ring-2 brand-ring"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full brand-bg brand-bg-hover text-white font-semibold py-2 rounded-lg flex justify-center items-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Sign In Securely</span>
+                </button>
+              </form>
+            )}
+          </div>
+
+          {/* Secure super admin entry option */}
+          <div className="flex justify-center items-center border-t border-slate-100 pt-3 text-[11px] text-slate-400 gap-4">
+            <button 
+              onClick={() => setShowSuperPinInput(!showSuperPinInput)}
+              className="hover:text-slate-600 transition-colors font-medium flex items-center gap-1 cursor-pointer"
+            >
+              <Shield className="w-3 h-3 text-red-400" />
+              <span>Super Admin Portal</span>
+            </button>
+          </div>
+
+          {/* Super admin verification pin layout */}
+          {showSuperPinInput && (
+            <div className="bg-slate-900 text-white p-3.5 rounded-xl space-y-2.5 border border-slate-700/50 shadow-inner mt-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-red-400 animate-pulse" /> Super Admin Verification
+                </span>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowSuperPinInput(false);
+                    setSuperPin('');
+                    setSuperPinError('');
+                  }}
+                  className="text-[10px] font-bold text-slate-400 hover:text-white underline"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  type="password"
+                  placeholder="Enter Access PIN"
+                  value={superPin}
+                  onChange={(e) => {
+                    setSuperPin(e.target.value);
+                    setSuperPinError('');
+                  }}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSuperPinSubmit();
+                    }
+                  }}
+                />
+                <button 
+                  type="button"
+                  onClick={handleSuperPinSubmit}
+                  className="brand-bg brand-bg-hover text-white font-bold text-xs px-4 py-1.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  Verify
+                </button>
+              </div>
+              {superPinError ? (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-red-400 font-bold">{superPinError}</p>
+                  <div className="bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 space-y-1.5">
+                    <p className="text-[10px] text-slate-300 leading-relaxed">
+                      If the password/PIN is not working due to an existing Firebase Auth record, click below to instantly send a standard reset email to <strong>breakthroughcollege03@gmail.com</strong> to reset the password to <strong>2026</strong>:
+                    </p>
+                    {autoSuperResetSent ? (
+                      <p className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">✓ Reset link sent successfully! Please check your inbox.</p>
+                    ) : (
+                      <button 
+                        type="button"
+                        onClick={handleAutoSuperReset}
+                        className="text-[10px] bg-red-600 hover:bg-red-500 text-white px-2.5 py-1 rounded font-bold transition-all cursor-pointer"
+                      >
+                        Send Password Reset Link
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[9px] text-slate-400 font-medium">Please enter your Super Admin security credentials to access the console.</p>
+              )}
+            </div>
+          )}
         </div>
       </main>
 
@@ -1141,5 +1128,21 @@ function getRolesForHospital(h: Hospital) {
       { label: 'Solo Practitioner (All-in-One)', role: 'Solo Practitioner' as const, email: `solo@${domain}.com` }
     ];
   }
+}
+
+// Helper to determine the physical address or region location of a branch
+function getBranchAddress(h: Hospital): string {
+  if (h.address && h.address.trim() !== '') {
+    return h.address;
+  }
+  // Detailed realistic geographic locations for pre-seeded branches
+  const fallbacks: Record<string, string> = {
+    hospital_a: "Hospital Road, Upper Hill, Nairobi, Kenya",
+    hospital_b: "Gadi Street, Kisumu Central, Kisumu, Kenya",
+    hospital_c: "Coast General Rd, Kisauni, Mombasa, Kenya",
+    hospital_d: "Nandi Road, Eldoret CBD, Eldoret, Kenya",
+    hospital_e: "Government Road, Nakuru Plaza, Nakuru, Kenya"
+  };
+  return fallbacks[h.id] || "Main Clinical Avenue, Medical District";
 }
 

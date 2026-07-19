@@ -107,6 +107,14 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
     }
 
+    // Role Permissions (Multi-Tenant)
+    match /rolePermissions/{permId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow create: if isSignedIn() && (isSuperAdmin() || belongsToHospital(request.resource.data.hospitalId));
+      allow update: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+      allow delete: if isSignedIn() && (isSuperAdmin() || belongsToHospital(resource.data.hospitalId));
+    }
+
     // System Settings (Branding & Logo)
     match /settings/{settingId} {
       allow read: if true;

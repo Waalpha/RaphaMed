@@ -54,8 +54,10 @@ import {
   SystemSettings,
   getAllUsers,
   deleteUserProfile,
-  updateUserProfile
+  updateUserProfile,
+  updateHospitalOnlineStatus
 } from '../services/dbService';
+import HospitalDashboard from './HospitalDashboard';
 
 interface SuperAdminDashboardProps {
   currentUser: UserProfile;
@@ -67,6 +69,23 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [stats, setStats] = useState<Record<string, { patients: number, appointments: number, billings: number, totalRevenue: number }>>({});
   const [loading, setLoading] = useState(true);
+
+  // Tick for local state re-render to reflect self-healing branch offline status
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick(prev => prev + 1);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isBranchOnline = (h: Hospital) => {
+    if (!h.isOnline) return false;
+    if (!h.lastActiveAt) return true;
+    // 10 minutes in milliseconds to handle extreme clock drift between devices gracefully.
+    // If h.isOnline is true and lastActiveAt is within 10 minutes, the branch is online.
+    return (Date.now() - h.lastActiveAt) < 600000;
+  };
   
   // Modals / Form states
   const [showAddHospital, setShowAddHospital] = useState(false);
@@ -135,6 +154,9 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   const [showBrandingModal, setShowBrandingModal] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Tenant workspace simulation state
+  const [simulatingHospitalId, setSimulatingHospitalId] = useState<string | null>(null);
+
   useEffect(() => {
     fetchData();
 
@@ -175,6 +197,12 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       unsubscribeRolePerms();
     };
   }, []);
+
+  useEffect(() => {
+    if (simulatingHospitalId) {
+      updateHospitalOnlineStatus(simulatingHospitalId, true).catch(() => {});
+    }
+  }, [simulatingHospitalId]);
 
   async function fetchData() {
     setLoading(true);
@@ -542,6 +570,141 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
     }
   ];
 
+  if (simulatingHospitalId) {
+    const activeSimHosp = hospitals.find(h => h.id === simulatingHospitalId);
+    
+    // Create simulated user with Super Admin role so they have full administrative privileges
+    const simulatedUser: UserProfile = {
+      id: `simulated_admin_${simulatingHospitalId}`,
+      hospitalId: simulatingHospitalId,
+      name: `Super Admin Sim`,
+      email: currentUser.email,
+      role: 'Super Admin',
+      createdAt: new Date().toISOString()
+    };
+
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-900">
+        {/* Toast Notification HUD */}
+        {toastMessage && (
+          <div id="toast-sa-sim" className={`fixed top-4 right-4 z-[9999] p-4 rounded-xl shadow-lg border text-xs font-bold flex items-center space-x-2.5 transition-all transform duration-300 animate-slide-in ${
+            toastMessage.type === 'success' 
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+          }`}>
+            <span>{toastMessage.text}</span>
+          </div>
+        )}
+
+        {/* Sticky Simulation Control Bar */}
+        <div className="bg-slate-950 text-white border-b border-indigo-500/30 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50 shadow-lg">
+          <div className="flex items-center space-x-3.5">
+            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-md animate-pulse">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Multi-Tenant Simulator Panel</span>
+                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase">Active</span>
+              </div>
+              <h2 className="text-sm font-extrabold text-white">
+                Workspace: <span className="text-indigo-300 font-black">{activeSimHosp?.name || 'Clinic'}</span> ({activeSimHosp?.code})
+              </h2>
+            </div>
+          </div>
+
+          {/* Quick Toggle Buttons for 5 Pre-Seeded Tenants */}
+          <div className="flex items-center space-x-2.5">
+            <span className="text-xs font-semibold text-slate-400 hidden lg:inline">Quick Switch:</span>
+            <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800 space-x-1">
+              {hospitals.slice(0, 5).map((h, idx) => {
+                const isActive = h.id === simulatingHospitalId;
+                return (
+                  <button
+                    key={h.id}
+                    onClick={async () => {
+                      try {
+                        // Restore online status upon switching
+                        await updateHospitalOnlineStatus(h.id, true);
+                        setSimulatingHospitalId(h.id);
+                        showToast('success', `Switched to Tenant ${idx + 1}: ${h.name}. Online status restored.`);
+                      } catch (err) {
+                        setSimulatingHospitalId(h.id);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                      isActive 
+                        ? 'bg-indigo-600 text-white shadow-md font-black border border-indigo-400/20' 
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${isBranchOnline(h) ? 'bg-emerald-400' : 'bg-slate-500'}`} />
+                    <span>Tenant {idx + 1}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* General Dropdown for other custom tenants if any */}
+            {hospitals.length > 5 && (
+              <select
+                value={simulatingHospitalId}
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  const selectedH = hospitals.find(h => h.id === val);
+                  if (val && selectedH) {
+                    try {
+                      await updateHospitalOnlineStatus(val, true);
+                      setSimulatingHospitalId(val);
+                      showToast('success', `Switched to ${selectedH.name}. Online status restored.`);
+                    } catch (err) {
+                      setSimulatingHospitalId(val);
+                    }
+                  }
+                }}
+                className="bg-slate-900 text-slate-200 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                {hospitals.slice(5).map(h => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Online Status Coordination */}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl">
+              <span className="text-xs font-semibold text-slate-400">Online Coordination:</span>
+              <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider border border-emerald-500/20">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                </span>
+                Online
+              </span>
+            </div>
+
+            <button
+              onClick={() => setSimulatingHospitalId(null)}
+              className="bg-slate-800 hover:bg-rose-950 hover:text-rose-200 border border-slate-700 hover:border-rose-900 text-slate-300 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              Exit Simulation
+            </button>
+          </div>
+        </div>
+
+        {/* Live Interconnected Tenant Dashboard Component */}
+        <div className="flex-1 bg-slate-50">
+          <HospitalDashboard 
+            currentUser={simulatedUser} 
+            hospitalName={activeSimHosp?.name || 'Simulated Clinic'} 
+            onLogout={() => setSimulatingHospitalId(null)} 
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div id="super-admin-dashboard" className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Header */}
@@ -614,7 +777,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estimated Combined Revenue</span>
-              <h3 className="text-2xl font-extrabold text-slate-800 mt-1">KES {totalRevenue.toLocaleString()}</h3>
+              <h3 className="text-2xl font-extrabold text-slate-800 mt-1">KSh {totalRevenue.toLocaleString()}</h3>
               <span className="block text-xs text-emerald-600 mt-1 font-medium">All billing paid across 5+ tenants</span>
             </div>
             <div className="bg-emerald-50 p-3 rounded-lg text-emerald-600">
@@ -722,6 +885,84 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                 </ResponsiveContainer>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Admitted Patients Bar Chart Visualization */}
+        <div id="sa-recharts-patients-bar" className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-3 gap-3">
+            <div>
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2 uppercase tracking-wider">
+                <Users className="w-5 h-5 text-indigo-500" /> Admitted Patients Analytics
+              </h3>
+              <p className="text-xs text-slate-500">Real-time breakdown of active admitted patients currently checked in across each branch.</p>
+            </div>
+            <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-indigo-600 inline-block" />
+                <span className="text-slate-600">Active Branches</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-amber-500 inline-block" />
+                <span className="text-slate-600">Suspended Branches</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-72 w-full pt-2">
+            {hospitals.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-xs text-slate-400 italic">
+                No hospitals loaded. Add a tenant to view analytics.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={hospitals.map(h => ({
+                  name: h.name,
+                  code: h.code || h.id,
+                  'Admitted Patients': h.admittedPatientsCount || 0,
+                  status: h.status || 'active'
+                }))} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="code" 
+                    stroke="#94a3b8" 
+                    fontSize={11} 
+                    fontWeight="bold"
+                    tickLine={false} 
+                  />
+                  <YAxis 
+                    stroke="#94a3b8" 
+                    fontSize={11} 
+                    fontWeight="bold"
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#0f172a', 
+                      borderRadius: '8px', 
+                      border: '1px solid #1e293b', 
+                      fontSize: '11px',
+                      color: '#fff'
+                    }}
+                    cursor={{ fill: '#f8fafc' }}
+                    formatter={(value: any) => [`${value} Patients`, 'Admitted Patients']}
+                    labelFormatter={(label) => {
+                      const hosp = hospitals.find(h => h.code === label);
+                      return hosp ? hosp.name : label;
+                    }}
+                  />
+                  <Bar dataKey="Admitted Patients" radius={[4, 4, 0, 0]} barSize={36}>
+                    {hospitals.map((h, idx) => (
+                      <Cell 
+                        key={`cell-${idx}`} 
+                        fill={h.status === 'suspended' ? '#f59e0b' : '#6366f1'} 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -1599,7 +1840,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-slate-800">{h.name}</span>
-                            {h.isOnline ? (
+                            {isBranchOnline(h) ? (
                               <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider">
                                 <span className="relative flex h-1.5 w-1.5">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -1608,7 +1849,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                                 Online
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider">
+                              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider border border-slate-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                                 Offline
                               </span>
@@ -1655,7 +1896,25 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             <span className="capitalize">{h.status}</span>
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-right space-x-2">
+                        <td className="py-4 px-6 text-right space-y-1.5 sm:space-y-0 sm:space-x-2">
+                          <button 
+                            id={`btn-simulate-${h.id}`}
+                            onClick={async () => {
+                              try {
+                                await updateHospitalOnlineStatus(h.id, true);
+                                setSimulatingHospitalId(h.id);
+                                showToast('success', `Entering Simulated Workspace for "${h.name}". Online status restored.`);
+                              } catch (err) {
+                                setSimulatingHospitalId(h.id);
+                              }
+                            }}
+                            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-md font-bold transition-colors inline-flex items-center space-x-1 shadow-sm cursor-pointer border border-emerald-500"
+                            title="Open Tenant Workspace & Restore Online Status"
+                          >
+                            <Play className="w-3 h-3 text-emerald-100 fill-emerald-100" />
+                            <span>Enter Workspace</span>
+                          </button>
+
                           <button 
                             id={`btn-edit-${h.id}`}
                             onClick={() => handleStartEdit(h)}

@@ -13,6 +13,7 @@ export interface Hospital {
   notes?: string;
   taxNumber?: string;
   isOnline?: boolean;
+  lastActiveAt?: number;
   admittedPatientsCount?: number;
 }
 
