@@ -621,13 +621,13 @@ export default function App() {
       <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-6">
         <div className="bg-white max-w-md w-full border border-red-200 rounded-xl p-8 text-center space-y-4 shadow-sm">
           <AlertOctagon className="w-16 h-16 text-red-600 mx-auto" />
-          <h2 className="text-xl font-extrabold text-slate-800">Hospital Tenancy Suspended</h2>
+          <h2 className="text-xl font-extrabold text-slate-800">Hospital Branch Suspended</h2>
           <p className="text-sm text-slate-500">
             Access to <strong>{hospitalInfo?.name}</strong> has been suspended by the system Super Administrator. 
-            All patient records and clinical databases for this tenant are securely locked.
+            All patient records and clinical databases for this branch are securely locked.
           </p>
           <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-xs font-mono text-red-700">
-            Tenant Code: {hospitalInfo?.code}
+            Branch Code: {hospitalInfo?.code}
           </div>
           <button 
             onClick={handleLogout}
@@ -720,14 +720,14 @@ export default function App() {
         <div className="flex-1 w-full space-y-6 max-w-xl text-center lg:text-left">
           <div className="space-y-2">
             <span className="text-xs font-bold brand-text tracking-widest uppercase">
-              HMS CORE MULTI-TENANT DIRECTORY
+              HMS CORE MULTI-BRANCH DIRECTORY
             </span>
             <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-800 tracking-tight leading-none">
               Clinics & Hospital Branches <br />
               <span className="brand-text">Active Network Directory</span>
             </h1>
             <p className="text-slate-500 text-xs leading-relaxed">
-              Welcome to the secure HIPAA-compliant multi-tenant dashboard. Monitor active branch networks, check online availability, and select a branch to launch your dedicated clinical workspace.
+              Welcome to the secure HIPAA-compliant multi-branch dashboard. Monitor active branch networks, check online availability, and select a branch to launch your dedicated clinical workspace.
             </p>
           </div>
 
@@ -743,7 +743,7 @@ export default function App() {
             <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
               {loadedHospitals.length === 0 ? (
                 <div className="p-4 text-center text-slate-400 text-xs italic">
-                  No hospital tenants found. Please log in as Super Admin to add one.
+                  No hospital branches found. Please log in as Super Admin to add one.
                 </div>
               ) : (
                 loadedHospitals.map((h, idx) => {

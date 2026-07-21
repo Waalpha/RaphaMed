@@ -239,12 +239,12 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
     const isNameDuplicate = hospitals.some(h => h.name.toLowerCase() === trimmedName.toLowerCase());
 
     if (isCodeDuplicate) {
-      showToast('error', `A hospital tenant with isolation code "${trimmedCode}" already exists.`);
+      showToast('error', `A hospital branch with isolation code "${trimmedCode}" already exists.`);
       return;
     }
 
     if (isNameDuplicate) {
-      showToast('error', `A hospital tenant with name "${trimmedName}" already exists.`);
+      showToast('error', `A hospital branch with name "${trimmedName}" already exists.`);
       return;
     }
     
@@ -264,7 +264,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       setNewHospitalName('');
       setNewHospitalCode('');
       await fetchData();
-      showToast('success', `Hospital tenant "${trimmedName}" created successfully!`);
+      showToast('success', `Hospital branch "${trimmedName}" created successfully!`);
     } catch (err: any) {
       showToast('error', 'Error creating hospital: ' + (err.message || err));
     }
@@ -305,7 +305,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       setShowEditHospital(false);
       setEditingHospital(null);
       await fetchData();
-      showToast('success', 'Hospital tenant details updated successfully.');
+      showToast('success', 'Hospital branch details updated successfully.');
     } catch (err: any) {
       showToast('error', 'Error updating hospital details: ' + err.message);
     }
@@ -325,7 +325,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       setDeletingHospitalId(null);
       setDeletingHospitalName('');
       await fetchData();
-      showToast('success', 'Hospital tenant deleted successfully.');
+      showToast('success', 'Hospital branch deleted successfully.');
     } catch (err: any) {
       showToast('error', 'Error deleting hospital: ' + err.message);
     }
@@ -347,7 +347,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       setSuspendingHospitalId(null);
       setSuspendingHospitalName('');
       await fetchData();
-      showToast('success', `Hospital tenant is now ${newStatus}.`);
+      showToast('success', `Hospital branch is now ${newStatus}.`);
     } catch (e: any) {
       showToast('error', 'Error updating status: ' + e.message);
     }
@@ -516,7 +516,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `hms_tenant_backup_${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `hms_branch_backup_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -560,13 +560,13 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   const summaryChartData = [
     {
       name: 'Active',
-      'Tenants': activeHospitals,
+      'Branches': activeHospitals,
       'Revenue ($)': activeSubscriptionRevenue,
       color: '#10b981'
     },
     {
       name: 'Suspended',
-      'Tenants': suspendedHospitals,
+      'Branches': suspendedHospitals,
       'Revenue ($)': suspendedSubscriptionRevenue,
       color: '#f59e0b'
     }
@@ -606,7 +606,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Multi-Tenant Simulator Panel</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-indigo-400">Multi-Branch Simulator Panel</span>
                 <span className="text-[10px] bg-emerald-500/10 text-emerald-400 font-extrabold px-1.5 py-0.5 rounded border border-emerald-500/20 uppercase">Active</span>
               </div>
               <h2 className="text-sm font-extrabold text-white">
@@ -629,7 +629,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                         // Restore online status upon switching
                         await updateHospitalOnlineStatus(h.id, true);
                         setSimulatingHospitalId(h.id);
-                        showToast('success', `Switched to Tenant ${idx + 1}: ${h.name}. Online status restored.`);
+                        showToast('success', `Switched to Branch ${idx + 1}: ${h.name}. Online status restored.`);
                       } catch (err) {
                         setSimulatingHospitalId(h.id);
                       }
@@ -641,7 +641,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                     }`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${isBranchOnline(h) ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-                    <span>Tenant {idx + 1}</span>
+                    <span>Branch {idx + 1}</span>
                   </button>
                 );
               })}
@@ -763,7 +763,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
         <div id="sa-metrics" className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Tenants</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Branches</span>
               <h3 className="text-2xl font-extrabold text-slate-800 mt-1">{totalHospitals}</h3>
               <div className="flex items-center space-x-2 mt-1 text-xs">
                 <span className="text-emerald-600 font-semibold">{activeHospitals} Active</span>
@@ -780,7 +780,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estimated Combined Revenue</span>
               <h3 className="text-2xl font-extrabold text-slate-800 mt-1">KSh {totalRevenue.toLocaleString()}</h3>
-              <span className="block text-xs text-emerald-600 mt-1 font-medium">All billing paid across 5+ tenants</span>
+              <span className="block text-xs text-emerald-600 mt-1 font-medium">All billing paid across 5+ branches</span>
             </div>
             <div className="bg-emerald-50 p-3 rounded-lg text-emerald-600">
               <DollarSign className="w-6 h-6" />
@@ -817,9 +817,9 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
           <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-3 gap-3">
             <div>
               <h3 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-indigo-500" /> Subscription & Tenancy Analytics
+                <TrendingUp className="w-5 h-5 text-indigo-500" /> Subscription & Branch Analytics
               </h3>
-              <p className="text-xs text-slate-500">Breakdown of active vs suspended tenants and their collective recurring subscription revenue.</p>
+              <p className="text-xs text-slate-500">Breakdown of active vs suspended branches and their collective recurring subscription revenue.</p>
             </div>
             <div className="text-left sm:text-right bg-indigo-50 px-3.5 py-1.5 rounded-lg border border-indigo-100">
               <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">Total Monthly ARR</span>
@@ -831,7 +831,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             {/* Left Chart: Tenants Count */}
             <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100 space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tenant Distribution</span>
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Branch Distribution</span>
                 <span className="text-xs font-mono font-bold text-slate-500">
                   {activeHospitals} Active / {suspendedHospitals} Suspended
                 </span>
@@ -846,7 +846,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                       contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '11px' }}
                       cursor={{ fill: '#f1f5f9' }}
                     />
-                    <Bar dataKey="Tenants" radius={[0, 4, 4, 0]} barSize={16}>
+                    <Bar dataKey="Branches" radius={[0, 4, 4, 0]} barSize={16}>
                       {summaryChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
@@ -914,7 +914,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
           <div className="h-72 w-full pt-2">
             {hospitals.length === 0 ? (
               <div className="flex items-center justify-center h-full text-xs text-slate-400 italic">
-                No hospitals loaded. Add a tenant to view analytics.
+                No hospitals loaded. Add a branch to view analytics.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -976,7 +976,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                 <Activity className="w-5 h-5 animate-pulse" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 text-base">System Tenancy Health Overview</h3>
+                <h3 className="font-bold text-slate-800 text-base">System Branch Health Overview</h3>
                 <p className="text-xs text-slate-500">Real-time health evaluation and distribution of independent medical networks.</p>
               </div>
             </div>
@@ -988,7 +988,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                   : 'bg-amber-50 text-amber-700 border border-amber-200'
               }`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${suspendedHospitals === 0 ? 'bg-emerald-500' : 'bg-amber-500 animate-ping'}`} />
-                {suspendedHospitals === 0 ? 'All Systems Operational' : `${suspendedHospitals} suspended tenants`}
+                {suspendedHospitals === 0 ? 'All Systems Operational' : `${suspendedHospitals} suspended branches`}
               </span>
             </div>
           </div>
@@ -998,7 +998,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             <div className="md:col-span-2 space-y-3 bg-slate-50/50 p-4 rounded-xl border border-slate-100 flex flex-col justify-center">
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500 font-semibold flex items-center gap-1">
-                  Active Tenancy Ratio
+                  Active Branch Ratio
                 </span>
                 <span className="font-mono font-bold text-slate-700">
                   {totalHospitals > 0 ? Math.round((activeHospitals / totalHospitals) * 100) : 0}% Active
@@ -1065,7 +1065,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 text-base">Subscription Plan Directory</h3>
-                  <p className="text-xs text-slate-500">Overview of the administrative, clinical features, and billing structure activated per tenant tier.</p>
+                  <p className="text-xs text-slate-500">Overview of the administrative, clinical features, and billing structure activated per branch tier.</p>
                 </div>
               </div>
               <button 
@@ -1106,7 +1106,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
               className="bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-4 py-2 rounded-lg flex items-center space-x-1.5 transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Hospital Tenant</span>
+              <span>Add Hospital Branch</span>
             </button>
             <button 
               id="btn-trigger-add-admin"
@@ -1165,7 +1165,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
             <form onSubmit={handleCreateHospital} className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="font-bold text-lg text-slate-800">Add New Hospital Tenant</h3>
+                <h3 className="font-bold text-lg text-slate-800">Add New Hospital Branch</h3>
                 <button type="button" onClick={() => setShowAddHospital(false)} className="text-slate-400 hover:text-slate-600">
                   <Pause className="w-5 h-5 rotate-45" />
                 </button>
@@ -1219,7 +1219,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                   type="submit"
                   className="px-4 py-2 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg"
                 >
-                  Create Tenant
+                  Create Branch
                 </button>
               </div>
             </form>
@@ -1231,7 +1231,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
             <form onSubmit={handleSaveEdit} className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-xl p-6 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="font-bold text-lg text-slate-800">Edit Hospital Tenant</h3>
+                <h3 className="font-bold text-lg text-slate-800">Edit Hospital Branch</h3>
                 <button type="button" onClick={() => { setShowEditHospital(false); setEditingHospital(null); }} className="text-slate-400 hover:text-slate-600">
                   <Pause className="w-5 h-5 rotate-45" />
                 </button>
@@ -1511,11 +1511,11 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4">
               <div className="flex items-center space-x-3 text-rose-600">
                 <AlertCircle className="w-8 h-8 shrink-0" />
-                <h3 className="font-bold text-lg">Permanently Delete Tenant?</h3>
+                <h3 className="font-bold text-lg">Permanently Delete Branch?</h3>
               </div>
               <div className="space-y-2">
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Are you absolutely sure you want to permanently delete the hospital tenant 
+                  Are you absolutely sure you want to permanently delete the hospital branch 
                   <strong className="text-slate-900 block mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono">
                     "{deletingHospitalName}"
                   </strong>
@@ -1537,7 +1537,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                   onClick={handleConfirmDelete}
                   className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg"
                 >
-                  Delete Tenant
+                  Delete Branch
                 </button>
               </div>
             </div>
@@ -1551,19 +1551,19 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
               <div className="flex items-center space-x-3 text-amber-600">
                 <AlertCircle className="w-8 h-8 shrink-0" />
                 <h3 className="font-bold text-lg">
-                  {suspendingCurrentStatus === 'active' ? 'Suspend' : 'Activate'} Hospital Tenant?
+                  {suspendingCurrentStatus === 'active' ? 'Suspend' : 'Activate'} Hospital Branch?
                 </h3>
               </div>
               <div>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  Are you sure you want to {suspendingCurrentStatus === 'active' ? 'suspend' : 'activate'} the hospital tenant 
+                  Are you sure you want to {suspendingCurrentStatus === 'active' ? 'suspend' : 'activate'} the hospital branch 
                   <strong className="text-slate-900 block mt-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono">
                     "{suspendingHospitalName}"
                   </strong>
                 </p>
                 {suspendingCurrentStatus === 'active' && (
                   <p className="text-xs text-slate-400 mt-2">
-                    Note: Suspended hospital tenants cannot login or process clinical workflows until re-activated by a super-administrator.
+                    Note: Suspended hospital branches cannot login or process clinical workflows until re-activated by a super-administrator.
                   </p>
                 )}
               </div>
@@ -1582,7 +1582,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                     suspendingCurrentStatus === 'active' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
                   }`}
                 >
-                  {suspendingCurrentStatus === 'active' ? 'Suspend Tenant' : 'Activate Tenant'}
+                  {suspendingCurrentStatus === 'active' ? 'Suspend Branch' : 'Activate Branch'}
                 </button>
               </div>
             </div>
@@ -1830,18 +1830,18 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
             <div>
-              <h2 className="font-bold text-slate-800 text-lg">Hospital Tenant Isolation Monitor</h2>
-              <p className="text-xs text-slate-500">Every single tenant operates in complete separation. Active subscription, usage metrics, and statuses.</p>
+              <h2 className="font-bold text-slate-800 text-lg">Hospital Branch Isolation Monitor</h2>
+              <p className="text-xs text-slate-500">Every single branch operates in complete separation. Active subscription, usage metrics, and statuses.</p>
             </div>
             <div className="bg-indigo-100 px-3 py-1 rounded-full text-xs font-bold text-indigo-700">
-              5 Active Tenancies Max
+              5 Active Branches Max
             </div>
           </div>
 
           {loading ? (
             <div className="p-12 text-center text-slate-500">
               <Activity className="w-8 h-8 animate-spin mx-auto mb-3 text-slate-400" />
-              <span>Fetching secure statistics across multi-tenant indices...</span>
+              <span>Fetching secure statistics across multi-branch indices...</span>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1935,7 +1935,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                               }
                             }}
                             className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-md font-bold transition-colors inline-flex items-center space-x-1 shadow-sm cursor-pointer border border-emerald-500"
-                            title="Open Tenant Workspace & Restore Online Status"
+                            title="Open Branch Workspace & Restore Online Status"
                           >
                             <Play className="w-3 h-3 text-emerald-100 fill-emerald-100" />
                             <span>Enter Workspace</span>
@@ -1945,7 +1945,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             id={`btn-edit-${h.id}`}
                             onClick={() => handleStartEdit(h)}
                             className="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1"
-                            title="Edit Tenant"
+                            title="Edit Branch"
                           >
                             <Edit2 className="w-3 h-3" />
                             <span>Edit</span>
@@ -1955,7 +1955,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             id={`btn-delete-${h.id}`}
                             onClick={() => handleStartDelete(h.id, h.name)}
                             className="text-xs bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1"
-                            title="Delete Tenant"
+                            title="Delete Branch"
                           >
                             <Trash2 className="w-3 h-3" />
                             <span>Delete</span>
@@ -1998,7 +1998,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
               <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
                 <Users className="w-5 h-5 text-indigo-500" /> Hospital Administrators & Staff Directory
               </h2>
-              <p className="text-xs text-slate-500">Manage, edit, and delete Hospital Administrators or medical staff accounts across all tenants.</p>
+              <p className="text-xs text-slate-500">Manage, edit, and delete Hospital Administrators or medical staff accounts across all branches.</p>
             </div>
             <button
               onClick={() => {

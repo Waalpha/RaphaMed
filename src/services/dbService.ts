@@ -153,7 +153,7 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
 }
 
 // ==========================================
-// PATIENTS (Multi-Tenant)
+// PATIENTS (Multi-Branch)
 // ==========================================
 
 export async function updateAdmittedPatientsCount(hospitalId: string): Promise<number> {
@@ -204,7 +204,7 @@ export async function updatePatient(patientId: string, data: Partial<Patient>): 
 }
 
 // ==========================================
-// APPOINTMENTS (Multi-Tenant)
+// APPOINTMENTS (Multi-Branch)
 // ==========================================
 
 export async function getAppointments(hospitalId: string): Promise<Appointment[]> {
@@ -229,7 +229,7 @@ export async function updateAppointmentStatus(appointmentId: string, status: App
 }
 
 // ==========================================
-// MEDICAL RECORDS (Multi-Tenant)
+// MEDICAL RECORDS (Multi-Branch)
 // ==========================================
 
 export async function getMedicalRecords(hospitalId: string): Promise<MedicalRecord[]> {
@@ -254,7 +254,7 @@ export async function updateMedicalRecord(recordId: string, data: Partial<Medica
 }
 
 // ==========================================
-// PHARMACY STOCK (Multi-Tenant)
+// PHARMACY STOCK (Multi-Branch)
 // ==========================================
 
 export async function getPharmacyStock(hospitalId: string): Promise<PharmacyStock[]> {
@@ -281,7 +281,7 @@ export async function deletePharmacyStockItem(stockId: string): Promise<void> {
 }
 
 // ==========================================
-// WARD BEDS (Multi-Tenant)
+// WARD BEDS (Multi-Branch)
 // ==========================================
 
 export async function getWardBeds(hospitalId: string): Promise<WardBed[]> {
@@ -299,7 +299,7 @@ export async function updateWardBedStatus(bedId: string, status: 'Available' | '
 }
 
 // ==========================================
-// BILLING (Multi-Tenant)
+// BILLING (Multi-Branch)
 // ==========================================
 
 export async function getBillingRecords(hospitalId: string): Promise<Billing[]> {
@@ -381,7 +381,7 @@ export async function downloadAllSystemDataBackup(): Promise<string> {
 }
 
 // ==========================================
-// ROLE & PERMISSIONS (Multi-Tenant)
+// ROLE & PERMISSIONS (Multi-Branch)
 // ==========================================
 
 export async function getRolePermissions(hospitalId: string): Promise<RolePermission[]> {

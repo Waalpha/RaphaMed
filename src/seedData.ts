@@ -88,7 +88,7 @@ export async function seedHospitalsAndData() {
     // Now seed other sample data for each active hospital so they are immediately fully functional!
     // Note: To avoid permission errors when unauthenticated on startup, we now seed hospital-specific
     // data dynamically when a user of that tenant logs in.
-    console.log('Base hospitals seeded. Specific hospital data will be seeded dynamically upon tenant login.');
+    console.log('Base hospitals seeded. Specific hospital data will be seeded dynamically upon branch login.');
   } catch (error) {
     console.error('Error during database seeding:', error);
   }
