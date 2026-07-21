@@ -2130,6 +2130,7 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                           <th className="py-3 px-4">Demographics</th>
                           <th className="py-3 px-4">Contact</th>
                           <th className="py-3 px-4">Insurance Info</th>
+                          <th className="py-3 px-4">Date/Time Registered</th>
                           <th className="py-3 px-4">Status</th>
                         </tr>
                       </thead>
@@ -2153,6 +2154,28 @@ export default function HospitalDashboard({ currentUser, hospitalName, onLogout 
                                 {p.insuranceType}
                               </span>
                               {p.insuranceId && <span className="block text-[10px] font-mono text-slate-400 mt-0.5">{p.insuranceId}</span>}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {p.createdAt ? (
+                                <>
+                                  <div className="font-bold text-slate-700 text-xs">
+                                    {new Date(p.createdAt).toLocaleDateString('en-GB', {
+                                      day: '2-digit',
+                                      month: 'short',
+                                      year: 'numeric'
+                                    })}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
+                                    {new Date(p.createdAt).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    })}
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-slate-400 text-xs">N/A</span>
+                              )}
                             </td>
                             <td className="py-3.5 px-4">
                               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5" />

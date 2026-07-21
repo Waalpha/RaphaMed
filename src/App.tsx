@@ -275,8 +275,27 @@ export default function App() {
     let userCredential: any = null;
     let lastError: any = null;
 
-    // Support both '2026' and 'Password123!' for the Super Admin
-    const tryPasswords = email.trim().toLowerCase() === 'breakthroughcollege03@gmail.com'
+    // Support both '2026' and 'Password123!' for any Super Admin email
+    let isSuper = email.trim().toLowerCase() === 'breakthroughcollege03@gmail.com';
+    if (!isSuper) {
+      try {
+        const mockUid = `uid_${email.replace(/[^a-zA-Z0-9]/g, '')}`;
+        const userDocSnap = await getDoc(doc(db, 'users', mockUid));
+        if (userDocSnap.exists() && userDocSnap.data()?.role === 'Super Admin') {
+          isSuper = true;
+        } else {
+          const q = query(collection(db, 'users'), where('email', '==', email.trim().toLowerCase()), where('role', '==', 'Super Admin'));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            isSuper = true;
+          }
+        }
+      } catch (errCheck) {
+        console.error('Error checking super admin role:', errCheck);
+      }
+    }
+
+    const tryPasswords = isSuper
       ? [password, '2026', 'Password123!']
       : [password];
 
@@ -408,8 +427,21 @@ export default function App() {
   // Handle Quick Login Seeding & Signing in
   async function handleQuickLogin(targetEmail: string, role: UserProfile['role'], hospitalId: string, hospitalName: string) {
     if (role === 'Super Admin' && targetEmail !== 'breakthroughcollege03@gmail.com') {
-      setLoginError('Access Denied: Only breakthroughcollege03@gmail.com can log in as Super Admin.');
-      return;
+      try {
+        const mockUid = `uid_${targetEmail.replace(/[^a-zA-Z0-9]/g, '')}`;
+        const userDocSnap = await getDoc(doc(db, 'users', mockUid));
+        if (!userDocSnap.exists() || userDocSnap.data()?.role !== 'Super Admin') {
+          const q = query(collection(db, 'users'), where('email', '==', targetEmail.trim().toLowerCase()), where('role', '==', 'Super Admin'));
+          const snap = await getDocs(q);
+          if (snap.empty) {
+            setLoginError('Access Denied: Only authorized Super Admins can log in.');
+            return;
+          }
+        }
+      } catch (errCheck) {
+        setLoginError('Access Denied during authorization check.');
+        return;
+      }
     }
     setLoading(true);
     setLoginError('');
@@ -424,7 +456,7 @@ export default function App() {
       let userCredential: any = null;
       let lastError: any = null;
 
-      const tryPasswords = targetEmail.trim().toLowerCase() === 'breakthroughcollege03@gmail.com'
+      const tryPasswords = (targetEmail.trim().toLowerCase() === 'breakthroughcollege03@gmail.com' || role === 'Super Admin')
         ? ['2026', 'Password123!']
         : ['Password123!'];
 
@@ -612,26 +644,6 @@ export default function App() {
   // 2. DASHBOARD VIEW BASED ON ACCOUNT TYPE
   if (user) {
     if (user.role === 'Super Admin') {
-      if (user.email !== 'breakthroughcollege03@gmail.com') {
-        return (
-          <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-6">
-            <div className="bg-white max-w-md w-full border border-red-200 rounded-xl p-8 text-center space-y-4 shadow-sm animate-fade-in">
-              <AlertOctagon className="w-16 h-16 text-red-600 mx-auto animate-pulse" />
-              <h2 className="text-xl font-extrabold text-slate-800">Super Admin Access Denied</h2>
-              <p className="text-sm text-slate-500 leading-relaxed">
-                You do not have permission to access the Super Admin control panel. Only the authorized system owner (<strong>breakthroughcollege03@gmail.com</strong>) is permitted.
-              </p>
-              <button 
-                onClick={handleLogout}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2 rounded-lg text-sm flex items-center justify-center space-x-1 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Return to Login</span>
-              </button>
-            </div>
-          </div>
-        );
-      }
       return (
         <SuperAdminDashboard 
           currentUser={user} 

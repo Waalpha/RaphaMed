@@ -124,6 +124,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
   const [adminEmail, setAdminEmail] = useState('');
   const [adminName, setAdminName] = useState('');
   const [adminHospitalId, setAdminHospitalId] = useState('');
+  const [adminRole, setAdminRole] = useState<'Hospital Admin' | 'Super Admin'>('Hospital Admin');
   const [adminStatusMsg, setAdminStatusMsg] = useState('');
   const [adminModalError, setAdminModalError] = useState('');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
@@ -467,7 +468,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
 
   async function handleCreateAdmin(e: React.FormEvent) {
     e.preventDefault();
-    if (!adminEmail || !adminName || !adminHospitalId) {
+    if (!adminEmail || !adminName || (adminRole !== 'Super Admin' && !adminHospitalId)) {
       setAdminModalError('Please fill in all fields.');
       return;
     }
@@ -479,24 +480,25 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
       // Create pre-registered user profile document in Firestore
       const mockUid = `uid_${adminEmail.replace(/[^a-zA-Z0-9]/g, '')}`;
       await createUserProfile(mockUid, {
-        hospitalId: adminHospitalId,
+        hospitalId: adminRole === 'Super Admin' ? 'Global' : adminHospitalId,
         name: adminName,
         email: adminEmail,
-        role: 'Hospital Admin',
+        role: adminRole,
         createdAt: new Date().toISOString()
       });
 
       // Show banner of success on the main screen
-      setAdminStatusMsg(`Admin user "${adminName}" successfully registered for hospital! Email: ${adminEmail}. They can now login manually or via simulation. Default password is 'Password123!'.`);
+      setAdminStatusMsg(`${adminRole === 'Super Admin' ? 'Super Admin' : 'Admin'} user "${adminName}" successfully registered! Email: ${adminEmail}. They can now login manually. Default password/PIN is '2026' or 'Password123!'.`);
       
       // Clear forms
       setAdminEmail('');
       setAdminName('');
       setAdminHospitalId('');
+      setAdminRole('Hospital Admin');
       
       // Close Modal and notify
       setShowAddAdmin(false);
-      showToast('success', `Hospital administrator registered successfully!`);
+      showToast('success', `${adminRole === 'Super Admin' ? 'Super Admin' : 'Hospital administrator'} registered successfully!`);
       
       setTimeout(() => setAdminStatusMsg(''), 15000);
     } catch (err: any) {
@@ -1592,7 +1594,9 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
             <form onSubmit={handleCreateAdmin} className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md p-6 space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 className="font-bold text-lg text-slate-800">Create Hospital Administrator</h3>
+                <h3 className="font-bold text-lg text-slate-800">
+                  {adminRole === 'Super Admin' ? 'Create Super Administrator' : 'Create Hospital Administrator'}
+                </h3>
                 <button type="button" onClick={() => setShowAddAdmin(false)} className="text-slate-400 hover:text-slate-600">
                   <Pause className="w-5 h-5 rotate-45" />
                 </button>
@@ -1631,20 +1635,42 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase">Select Target Hospital</label>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase">Account Role</label>
                   <select 
-                    value={adminHospitalId}
-                    onChange={e => setAdminHospitalId(e.target.value)}
+                    value={adminRole}
+                    onChange={e => setAdminRole(e.target.value as 'Hospital Admin' | 'Super Admin')}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
                     required
                     disabled={creatingAdmin}
                   >
-                    <option value="">-- Choose Hospital --</option>
-                    {hospitals.map(h => (
-                      <option key={h.id} value={h.id}>{h.name} ({h.code})</option>
-                    ))}
+                    <option value="Hospital Admin">Hospital Administrator</option>
+                    <option value="Super Admin">Super Administrator (Global)</option>
                   </select>
                 </div>
+                {adminRole !== 'Super Admin' ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase">Select Target Hospital</label>
+                    <select 
+                      value={adminHospitalId}
+                      onChange={e => setAdminHospitalId(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-indigo-600 bg-white"
+                      required
+                      disabled={creatingAdmin}
+                    >
+                      <option value="">-- Choose Hospital --</option>
+                      {hospitals.map(h => (
+                        <option key={h.id} value={h.id}>{h.name} ({h.code})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase">Target Scope</label>
+                    <div className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm mt-1 text-slate-500 font-medium">
+                      Global (System-Wide Access)
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end space-x-2 pt-3 border-t border-slate-100">
@@ -1979,6 +2005,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                 setAdminEmail('');
                 setAdminName('');
                 setAdminHospitalId('');
+                setAdminRole('Hospital Admin');
                 setAdminModalError('');
                 setShowAddAdmin(true);
               }}
@@ -2019,7 +2046,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
               <Activity className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
               <span className="text-xs">Loading user registry database...</span>
             </div>
-          ) : allUsersList.filter(u => u.role !== 'Super Admin' && (userSearchQuery ? (u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.role.toLowerCase().includes(userSearchQuery.toLowerCase())) : true) && (userHospitalFilter ? u.hospitalId === userHospitalFilter : true)).length === 0 ? (
+          ) : allUsersList.filter(u => (userSearchQuery ? (u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) || u.role.toLowerCase().includes(userSearchQuery.toLowerCase())) : true) && (userHospitalFilter ? u.hospitalId === userHospitalFilter : true)).length === 0 ? (
             <div className="p-12 text-center text-slate-400">
               <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
               <p className="text-sm font-semibold">No registered administrators found</p>
@@ -2040,7 +2067,6 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {allUsersList
                     .filter(u => {
-                      if (u.role === 'Super Admin') return false;
                       const matchesSearch = userSearchQuery ? (
                         u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
                         u.email.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
@@ -2058,7 +2084,12 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             <div className="text-slate-400 text-[11px] font-mono">{u.email}</div>
                           </td>
                           <td className="py-3.5 px-6">
-                            {hospital ? (
+                            {u.role === 'Super Admin' ? (
+                              <span className="inline-flex items-center gap-1 bg-red-50 border border-red-100 px-2 py-0.5 rounded text-xs font-semibold text-red-700">
+                                <Shield className="w-3 h-3 text-red-500" />
+                                Global System Scope
+                              </span>
+                            ) : hospital ? (
                               <span className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-xs font-semibold text-slate-700">
                                 <Building className="w-3 h-3 text-slate-500" />
                                 {hospital.name}
@@ -2069,7 +2100,9 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                           </td>
                           <td className="py-3.5 px-6">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                              u.role === 'Hospital Admin'
+                              u.role === 'Super Admin'
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : u.role === 'Hospital Admin'
                                 ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                                 : u.role === 'Doctor'
                                 ? 'bg-sky-50 text-sky-700 border border-sky-200'
@@ -2096,7 +2129,12 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             <button
                               id={`btn-delete-user-${u.id}`}
                               onClick={() => handleStartDeleteUser(u.id, u.name)}
-                              className="text-[11px] bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                              disabled={u.id === currentUser.id}
+                              className={`text-[11px] border px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1 cursor-pointer ${
+                                u.id === currentUser.id 
+                                  ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                                  : 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                              }`}
                               title="Delete User"
                             >
                               <Trash2 className="w-3 h-3" />
