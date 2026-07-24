@@ -15,6 +15,12 @@ export interface Hospital {
   isOnline?: boolean;
   lastActiveAt?: number;
   admittedPatientsCount?: number;
+  monthlyFee?: number;
+  paymentStatus?: 'Paid' | 'Unpaid';
+  lastPaymentMonth?: string; // e.g. '2026-07'
+  lastPaymentDate?: string; // e.g. '2026-07-02T10:00:00Z'
+  paymentOverride?: boolean; // Granted by Super Admin to allow user to continue
+  paymentOverrideNote?: string;
 }
 
 export interface UserProfile {

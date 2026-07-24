@@ -58,7 +58,32 @@ export async function updateSystemSettings(data: SystemSettings): Promise<void> 
 }
 
 export async function createHospital(hospital: Hospital): Promise<void> {
-  await setDoc(doc(db, 'hospitals', hospital.id), hospital);
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  
+  const hospitalData: Hospital = {
+    paymentStatus: 'Paid',
+    lastPaymentMonth: currentMonthStr,
+    lastPaymentDate: now.toISOString(),
+    monthlyFee: hospital.subscription === 'Premium' ? 150000 : hospital.subscription === 'Standard' ? 95000 : 50000,
+    paymentOverride: false,
+    ...hospital
+  };
+  await setDoc(doc(db, 'hospitals', hospital.id), hospitalData);
+}
+
+export async function updateHospitalPaymentDetails(
+  hospitalId: string,
+  details: {
+    monthlyFee?: number;
+    paymentStatus?: 'Paid' | 'Unpaid';
+    lastPaymentMonth?: string;
+    lastPaymentDate?: string;
+    paymentOverride?: boolean;
+    paymentOverrideNote?: string;
+  }
+): Promise<void> {
+  await updateDoc(doc(db, 'hospitals', hospitalId), details);
 }
 
 export async function updateHospitalDetails(

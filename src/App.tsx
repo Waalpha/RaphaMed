@@ -21,6 +21,7 @@ import { auth, db } from './firebase';
 import { seedHospitalsAndData, seedHospitalSpecificData } from './seedData';
 import { UserProfile, Hospital } from './types';
 import { createUserProfile, getAllHospitals, getSystemSettings, updateHospitalOnlineStatus, updateHospitalActiveHeartbeat } from './services/dbService';
+import { checkHospitalPaymentStatus, formatMonthString } from './utils/paymentUtils';
 import SuperAdminDashboard from './components/SuperAdminDashboard';
 import HospitalDashboard from './components/HospitalDashboard';
 import { 
@@ -33,7 +34,12 @@ import {
   ExternalLink,
   ChevronRight,
   Users,
-  MapPin
+  MapPin,
+  ShieldAlert,
+  RefreshCw,
+  Mail,
+  AlertTriangle,
+  Clock
 } from 'lucide-react';
 
 export default function App() {
@@ -42,6 +48,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [isSuspended, setIsSuspended] = useState(false);
+  const [showContactSuperAdmin, setShowContactSuperAdmin] = useState(false);
 
   // Branding states
   const [systemLogo, setSystemLogo] = useState<string>('/logo.svg');
@@ -263,6 +270,23 @@ export default function App() {
       updateHospitalOnlineStatus(hospId, false).catch(() => {});
     };
   }, [user]);
+
+  // Real-time listener for current logged-in branch details (payment/suspension updates)
+  useEffect(() => {
+    if (!user || user.role === 'Super Admin' || !user.hospitalId) return;
+
+    const unsubHosp = onSnapshot(doc(db, 'hospitals', user.hospitalId), (docSnap) => {
+      if (docSnap.exists()) {
+        const hospData = { id: docSnap.id, ...docSnap.data() } as Hospital;
+        setHospitalInfo(hospData);
+        setIsSuspended(hospData.status === 'suspended');
+      }
+    }, (err) => {
+      console.error('Error listening to branch doc updates:', err);
+    });
+
+    return () => unsubHosp();
+  }, [user?.hospitalId, user?.role]);
 
   // Handle manual login
   async function handleManualSubmit(e: React.FormEvent) {
@@ -656,6 +680,137 @@ export default function App() {
         />
       );
     } else if (hospitalInfo) {
+      const paymentCheck = checkHospitalPaymentStatus(hospitalInfo);
+      if (paymentCheck.isPaused) {
+        return (
+          <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-6 text-white relative overflow-hidden">
+            <div className="absolute -top-40 -right-40 w-96 h-96 bg-rose-600/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="bg-slate-800/90 backdrop-blur-md max-w-lg w-full border border-rose-500/30 rounded-2xl p-8 text-center space-y-6 shadow-2xl relative z-10">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-rose-500/10 border border-rose-500/30 rounded-full text-rose-400 mb-2 shadow-inner">
+                <Lock className="w-10 h-10 animate-pulse" />
+              </div>
+
+              <div>
+                <span className="text-[11px] font-extrabold uppercase tracking-widest text-rose-400 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20 inline-block mb-2">
+                  Project Access Paused
+                </span>
+                <h2 className="text-2xl font-black text-white tracking-tight">
+                  Monthly Subscription Payment Overdue
+                </h2>
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                  Project access for <strong className="text-slate-200">{hospitalInfo.name}</strong> has been automatically paused because monthly subscription payment due on the <strong className="text-amber-400">5th of the month</strong> was not recorded for <strong className="text-slate-200">{formatMonthString(paymentCheck.currentMonthStr)}</strong>.
+                </p>
+              </div>
+
+              <div className="bg-slate-900/80 border border-slate-700/80 rounded-xl p-4 text-left text-xs space-y-2.5 font-sans">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                  <span className="text-slate-400 font-medium">Branch Identity:</span>
+                  <span className="font-bold text-white font-mono bg-slate-800 px-2 py-0.5 rounded">{hospitalInfo.code}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Payment Schedule Rule:</span>
+                  <span className="font-bold text-amber-400">5th of Every Month</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Subscription Tier:</span>
+                  <span className="font-bold text-slate-200">{hospitalInfo.subscription || 'Standard'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Monthly Fee:</span>
+                  <span className="font-bold text-emerald-400">KSh {(hospitalInfo.monthlyFee || 150000).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+                  <span className="text-slate-400 font-medium">Current Access Status:</span>
+                  <span className="font-bold text-rose-400 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                    PAUSED (Unpaid after 5th)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-left flex items-start space-x-2.5">
+                <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-200/90 leading-normal">
+                  <strong>Super Admin Authorization Required:</strong> Only the Super Administrator can record payment or enable a continuation override to unpause this project application.
+                </p>
+              </div>
+
+              <div className="space-y-2.5 pt-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const snap = await getDoc(doc(db, 'hospitals', hospitalInfo.id));
+                      if (snap.exists()) {
+                        setHospitalInfo({ id: snap.id, ...snap.data() } as Hospital);
+                      }
+                    } catch (e) {
+                      console.error('Error refreshing hospital payment status:', e);
+                    }
+                  }}
+                  className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center space-x-2 shadow-lg shadow-emerald-900/30 cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Check & Refresh Payment Status</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setShowContactSuperAdmin(true)}
+                    className="bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 rounded-xl text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Contact Super Admin</span>
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer border border-slate-700"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Return to Login</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {showContactSuperAdmin && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+                <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-sm w-full text-left space-y-4 shadow-2xl">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                    <h3 className="font-bold text-white text-base flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-indigo-400" /> Super Admin Contact
+                    </h3>
+                    <button onClick={() => setShowContactSuperAdmin(false)} className="text-slate-400 hover:text-white">✕</button>
+                  </div>
+                  <div className="space-y-3 text-xs text-slate-300">
+                    <p className="text-slate-400 leading-relaxed">
+                      Please provide payment confirmation or request a continuation override from the Super Administrator:
+                    </p>
+                    <div className="bg-slate-800 p-3 rounded-xl border border-slate-700 space-y-2 font-mono">
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase">Email:</span>
+                        <span className="text-indigo-300 font-bold">breakthroughcollege03@gmail.com</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase">System:</span>
+                        <span className="text-emerald-400 font-bold">RAPHA JOY MEDICAL CLINICS</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowContactSuperAdmin(false)}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 rounded-xl text-xs"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       return (
         <HospitalDashboard 
           currentUser={user} 

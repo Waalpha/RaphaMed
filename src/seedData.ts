@@ -58,22 +58,37 @@ export async function seedHospitalsAndData() {
     // Check if hospitals already exist
     const hospitalsRef = collection(db, 'hospitals');
     const snapshot = await getDocs(hospitalsRef);
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
     if (!snapshot.empty) {
-      console.log('Hospitals already exist. Checking if plan migration to Premium is needed...');
+      console.log('Hospitals already exist. Checking if plan or payment field migration is needed...');
       const batch = writeBatch(db);
       let needsMigration = false;
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
+        const updates: any = {};
         if (data.subscription !== 'Premium') {
-          batch.update(docSnap.ref, { subscription: 'Premium' });
+          updates.subscription = 'Premium';
           needsMigration = true;
+        }
+        if (!data.lastPaymentMonth) {
+          updates.lastPaymentMonth = currentMonthStr;
+          updates.paymentStatus = 'Paid';
+          updates.lastPaymentDate = now.toISOString();
+          updates.monthlyFee = 150000;
+          updates.paymentOverride = false;
+          needsMigration = true;
+        }
+        if (Object.keys(updates).length > 0) {
+          batch.update(docSnap.ref, updates);
         }
       });
       if (needsMigration) {
         await batch.commit();
-        console.log('Existing hospitals migrated to Premium subscription successfully!');
+        console.log('Existing hospitals migrated to Premium subscription and payment fields updated successfully!');
       } else {
-        console.log('All existing hospitals are already on the Premium plan.');
+        console.log('All existing hospitals are up-to-date.');
       }
       return;
     }

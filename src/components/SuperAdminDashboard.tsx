@@ -22,12 +22,21 @@ import {
   Trash2,
   HelpCircle,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Clock,
+  ShieldCheck,
+  AlertTriangle,
+  Lock,
+  Unlock,
+  Calendar,
+  ShieldAlert,
+  CheckCircle2
 } from 'lucide-react';
 import { 
   Hospital, 
   UserProfile 
 } from '../types';
+import { checkHospitalPaymentStatus, formatMonthString } from '../utils/paymentUtils';
 import { 
   BarChart, 
   Bar, 
@@ -55,7 +64,8 @@ import {
   getAllUsers,
   deleteUserProfile,
   updateUserProfile,
-  updateHospitalOnlineStatus
+  updateHospitalOnlineStatus,
+  updateHospitalPaymentDetails
 } from '../services/dbService';
 import HospitalDashboard from './HospitalDashboard';
 
@@ -157,6 +167,68 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
 
   // Tenant workspace simulation state
   const [simulatingHospitalId, setSimulatingHospitalId] = useState<string | null>(null);
+
+  // Payment & Auto-Pause Management State
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPaymentHospital, setSelectedPaymentHospital] = useState<Hospital | null>(null);
+  const [overrideNoteInput, setOverrideNoteInput] = useState('');
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [simulate5thDate, setSimulate5thDate] = useState(false);
+
+  async function handleMarkPaymentPaid(hospital: Hospital) {
+    setUpdatingPayment(true);
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    try {
+      await updateHospitalPaymentDetails(hospital.id, {
+        paymentStatus: 'Paid',
+        lastPaymentMonth: currentMonthStr,
+        lastPaymentDate: now.toISOString(),
+        paymentOverride: false
+      });
+      showToast('success', `Subscription payment recorded for "${hospital.name}". Project unpaused!`);
+      setShowPaymentModal(false);
+      setSelectedPaymentHospital(null);
+    } catch (e: any) {
+      showToast('error', `Failed to update payment: ${e.message}`);
+    } finally {
+      setUpdatingPayment(false);
+    }
+  }
+
+  async function handleMarkPaymentUnpaid(hospital: Hospital) {
+    setUpdatingPayment(true);
+    try {
+      await updateHospitalPaymentDetails(hospital.id, {
+        paymentStatus: 'Unpaid'
+      });
+      showToast('success', `Marked "${hospital.name}" as Unpaid. Project will pause on/after 5th of month.`);
+      setShowPaymentModal(false);
+      setSelectedPaymentHospital(null);
+    } catch (e: any) {
+      showToast('error', `Failed to update payment: ${e.message}`);
+    } finally {
+      setUpdatingPayment(false);
+    }
+  }
+
+  async function handleToggleContinuationOverride(hospital: Hospital) {
+    setUpdatingPayment(true);
+    const newOverrideState = !hospital.paymentOverride;
+    try {
+      await updateHospitalPaymentDetails(hospital.id, {
+        paymentOverride: newOverrideState,
+        paymentOverrideNote: newOverrideState ? (overrideNoteInput || 'Approved continuation by Super Admin') : ''
+      });
+      showToast('success', newOverrideState ? `Super Admin continuation override activated for "${hospital.name}"!` : `Continuation override revoked for "${hospital.name}".`);
+      setShowPaymentModal(false);
+      setSelectedPaymentHospital(null);
+    } catch (e: any) {
+      showToast('error', `Failed to update override: ${e.message}`);
+    } finally {
+      setUpdatingPayment(false);
+    }
+  }
 
   useEffect(() => {
     fetchData();
@@ -811,6 +883,90 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             </div>
           </div>
         </div>
+
+        {/* Monthly Payment & Project Pause Control Banner */}
+        {(() => {
+          const paymentStats = hospitals.reduce((acc, h) => {
+            const pCheck = checkHospitalPaymentStatus(h, simulate5thDate ? new Date(2026, 6, 5) : undefined);
+            if (pCheck.statusType === 'PAID') acc.paid++;
+            else if (pCheck.statusType === 'PAUSED_UNPAID') acc.pausedUnpaid++;
+            else if (pCheck.statusType === 'OVERRIDE_ACTIVE') acc.overrideActive++;
+            else if (pCheck.statusType === 'DUE_SOON') acc.dueSoon++;
+            return acc;
+          }, { paid: 0, pausedUnpaid: 0, overrideActive: 0, dueSoon: 0 });
+
+          return (
+            <div id="sa-payment-pause-banner" className="bg-slate-900 rounded-xl p-5 border border-slate-800 text-white shadow-lg space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-indigo-400">
+                    <Calendar className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-base text-white">Monthly Subscription Auto-Pause System</h3>
+                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        Due 5th Every Month
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Client project access automatically pauses if payment is unpaid after the 5th of the month. Only Super Admin can record payment or enable continuation.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={() => setSimulate5thDate(prev => !prev)}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer border ${
+                      simulate5thDate 
+                        ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-lg shadow-amber-500/20' 
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border-slate-700'
+                    }`}
+                    title="Toggle test mode to simulate date on/after 5th of the month"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>{simulate5thDate ? '⚡ Test Mode Active: Date >= 5th (Testing Auto-Pause)' : 'Test Mode: Simulate 5th of Month'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-slate-400 font-medium block">Paid Current Month</span>
+                    <span className="text-lg font-black text-emerald-400">{paymentStats.paid} Branches</span>
+                  </div>
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                </div>
+
+                <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-slate-400 font-medium block">PAUSED (Unpaid after 5th)</span>
+                    <span className="text-lg font-black text-rose-400">{paymentStats.pausedUnpaid} Branches</span>
+                  </div>
+                  <Lock className="w-5 h-5 text-rose-400" />
+                </div>
+
+                <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-slate-400 font-medium block">Super Admin Overrides</span>
+                    <span className="text-lg font-black text-amber-300">{paymentStats.overrideActive} Active</span>
+                  </div>
+                  <ShieldCheck className="w-5 h-5 text-amber-300" />
+                </div>
+
+                <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/80 flex items-center justify-between">
+                  <div>
+                    <span className="text-slate-400 font-medium block">Due Soon (1st - 4th)</span>
+                    <span className="text-lg font-black text-blue-300">{paymentStats.dueSoon} Branches</span>
+                  </div>
+                  <Clock className="w-5 h-5 text-blue-300" />
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Tenant Summary & Subscription Revenue Recharts Bar */}
         <div id="sa-recharts-summary-bar" className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
@@ -1851,6 +2007,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                     <th className="py-4 px-6">Hospital Detail</th>
                     <th className="py-4 px-6 text-center">Isolation Code</th>
                     <th className="py-4 px-6">Subscription Level</th>
+                    <th className="py-4 px-6 text-center">Payment Status (Due 5th)</th>
                     <th className="py-4 px-6 text-center">Patients</th>
                     <th className="py-4 px-6 text-center">Appointments</th>
                     <th className="py-4 px-6 text-center">Billing Invoices</th>
@@ -1900,10 +2057,42 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             </span>
                           </div>
                           <span className="text-xs text-slate-400">
-                            {h.subscription === 'Premium' ? '$1,999/mo' :
-                             h.subscription === 'Standard' ? '$999/mo' :
-                             '$499/mo'}
+                            KSh {(h.monthlyFee || 150000).toLocaleString()}/mo
                           </span>
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          {(() => {
+                            const pCheck = checkHospitalPaymentStatus(h, simulate5thDate ? new Date(2026, 6, 5) : undefined);
+                            if (pCheck.statusType === 'PAID') {
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-200">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Paid ({pCheck.currentMonthStr})</span>
+                                </span>
+                              );
+                            } else if (pCheck.statusType === 'PAUSED_UNPAID') {
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 px-2.5 py-1 rounded-md text-xs font-bold border border-rose-300 animate-pulse">
+                                  <Lock className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>PROJECT PAUSED</span>
+                                </span>
+                              );
+                            } else if (pCheck.statusType === 'OVERRIDE_ACTIVE') {
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 px-2.5 py-1 rounded-md text-xs font-bold border border-amber-200">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>Override Active</span>
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-bold border border-blue-200">
+                                  <Clock className="w-3.5 h-3.5 text-blue-500" />
+                                  <span>Due 5th</span>
+                                </span>
+                              );
+                            }
+                          })()}
                         </td>
                         <td className="py-4 px-6 text-center font-medium text-slate-700">
                           {hStats.patients}
@@ -1922,7 +2111,21 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             <span className="capitalize">{h.status}</span>
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-right space-y-1.5 sm:space-y-0 sm:space-x-2">
+                        <td className="py-4 px-6 text-right space-y-1.5 sm:space-y-0 sm:space-x-1.5 flex flex-wrap justify-end gap-1">
+                          <button
+                            id={`btn-payment-${h.id}`}
+                            onClick={() => {
+                              setSelectedPaymentHospital(h);
+                              setOverrideNoteInput(h.paymentOverrideNote || '');
+                              setShowPaymentModal(true);
+                            }}
+                            className="text-xs bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 px-2.5 py-1.5 rounded-md font-bold transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                            title="Manage Payment & Project Access"
+                          >
+                            <DollarSign className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Payment & Access</span>
+                          </button>
+
                           <button 
                             id={`btn-simulate-${h.id}`}
                             onClick={async () => {
@@ -1938,13 +2141,13 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                             title="Open Branch Workspace & Restore Online Status"
                           >
                             <Play className="w-3 h-3 text-emerald-100 fill-emerald-100" />
-                            <span>Enter Workspace</span>
+                            <span>Workspace</span>
                           </button>
 
                           <button 
                             id={`btn-edit-${h.id}`}
                             onClick={() => handleStartEdit(h)}
-                            className="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1"
+                            className="text-xs bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 px-2 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1"
                             title="Edit Branch"
                           >
                             <Edit2 className="w-3 h-3" />
@@ -1954,22 +2157,12 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
                           <button 
                             id={`btn-delete-${h.id}`}
                             onClick={() => handleStartDelete(h.id, h.name)}
-                            className="text-xs bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2.5 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1"
+                            className="text-xs bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2 py-1.5 rounded-md font-medium transition-colors inline-flex items-center space-x-1"
                             title="Delete Branch"
                           >
                             <Trash2 className="w-3 h-3" />
-                            <span>Delete</span>
                           </button>
 
-                          <button 
-                            id={`btn-toggle-sub-${h.id}`}
-                            onClick={() => handleChangeSubscription(h.id, h.subscription)}
-                            className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-1.5 rounded-md font-medium transition-colors"
-                            title="Upgrade / Downgrade Plan"
-                          >
-                            Tier Shift
-                          </button>
-                          
                           <button 
                             id={`btn-toggle-status-${h.id}`}
                             onClick={() => handleStartToggleStatus(h.id, h.name, h.status)}
@@ -2149,6 +2342,153 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             </div>
           )}
         </div>
+
+        {/* Manage Branch Payment & Access Modal */}
+        {showPaymentModal && selectedPaymentHospital && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full p-6 space-y-5 shadow-2xl relative text-slate-800 my-8">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <DollarSign className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-lg text-slate-900">Manage Payment & Project Access</h3>
+                    <p className="text-xs text-slate-500">{selectedPaymentHospital.name} ({selectedPaymentHospital.code})</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowPaymentModal(false); setSelectedPaymentHospital(null); }}
+                  className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Status Banner */}
+              {(() => {
+                const pCheck = checkHospitalPaymentStatus(selectedPaymentHospital, simulate5thDate ? new Date(2026, 6, 5) : undefined);
+                return (
+                  <div className={`p-4 rounded-xl border text-xs space-y-2 ${
+                    pCheck.statusType === 'PAUSED_UNPAID'
+                      ? 'bg-rose-50 border-rose-200 text-rose-900'
+                      : pCheck.statusType === 'OVERRIDE_ACTIVE'
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
+                      : pCheck.statusType === 'PAID'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-blue-50 border-blue-200 text-blue-900'
+                  }`}>
+                    <div className="flex justify-between items-center font-bold">
+                      <span className="uppercase text-[10px] tracking-wider font-extrabold">Current Branch Project State</span>
+                      <span className="px-2 py-0.5 rounded text-[11px] uppercase tracking-wide font-black bg-white/80 shadow-xs">
+                        {pCheck.statusType === 'PAUSED_UNPAID' ? '🛑 PROJECT PAUSED' :
+                         pCheck.statusType === 'OVERRIDE_ACTIVE' ? '🛡️ OVERRIDE ACTIVE' :
+                         pCheck.statusType === 'PAID' ? '🟢 PAID & ACTIVE' : '🔵 DUE ON 5TH'}
+                      </span>
+                    </div>
+                    <p className="text-xs font-medium leading-relaxed">{pCheck.reason}</p>
+                  </div>
+                );
+              })()}
+
+              {/* Branch Fee Info */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2 font-sans">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Subscription Tier:</span>
+                  <span className="font-bold text-slate-800">{selectedPaymentHospital.subscription || 'Premium'} Plan</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Monthly Subscription Fee:</span>
+                  <span className="font-extrabold text-emerald-700">KSh {(selectedPaymentHospital.monthlyFee || 150000).toLocaleString()} / month</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Payment Due Schedule Rule:</span>
+                  <span className="font-bold text-amber-600">5th of Every Month</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                  <span className="text-slate-500 font-medium">Last Payment Recorded:</span>
+                  <span className="font-mono text-slate-700">
+                    {selectedPaymentHospital.lastPaymentMonth ? `${selectedPaymentHospital.lastPaymentMonth} (${selectedPaymentHospital.paymentStatus})` : 'No record'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Controls */}
+              <div className="space-y-3 pt-2">
+                <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Super Admin Controls</h4>
+
+                {/* Option 1: Record Paid */}
+                <div className="bg-emerald-50/60 border border-emerald-200 p-3.5 rounded-xl flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-emerald-900 block">Record Subscription Payment</span>
+                    <span className="text-[11px] text-emerald-700 block mt-0.5">Marks payment as received for current month. Immediately unpauses branch project workspace.</span>
+                  </div>
+                  <button
+                    disabled={updatingPayment}
+                    onClick={() => handleMarkPaymentPaid(selectedPaymentHospital)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-lg text-xs transition-colors shrink-0 cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    Mark Paid
+                  </button>
+                </div>
+
+                {/* Option 2: Allow Continuation Override */}
+                <div className="bg-amber-50/60 border border-amber-200 p-3.5 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-amber-900 block">Super Admin Continuation Override</span>
+                      <span className="text-[11px] text-amber-700 block mt-0.5">Allows branch users to continue accessing and operating the app even if payment is unpaid after the 5th.</span>
+                    </div>
+                    <button
+                      disabled={updatingPayment}
+                      onClick={() => handleToggleContinuationOverride(selectedPaymentHospital)}
+                      className={`font-bold px-3.5 py-2 rounded-lg text-xs transition-colors shrink-0 cursor-pointer shadow-sm disabled:opacity-50 ${
+                        selectedPaymentHospital.paymentOverride
+                          ? 'bg-slate-700 hover:bg-slate-800 text-white'
+                          : 'bg-amber-600 hover:bg-amber-700 text-white'
+                      }`}
+                    >
+                      {selectedPaymentHospital.paymentOverride ? 'Revoke Override' : 'Grant Override'}
+                    </button>
+                  </div>
+                  {!selectedPaymentHospital.paymentOverride && (
+                    <input
+                      type="text"
+                      placeholder="Optional extension note (e.g. Granted payment extension until 15th)"
+                      value={overrideNoteInput}
+                      onChange={(e) => setOverrideNoteInput(e.target.value)}
+                      className="w-full text-xs p-2 bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  )}
+                </div>
+
+                {/* Option 3: Mark Unpaid */}
+                <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl flex items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 block">Mark as Unpaid</span>
+                    <span className="text-[11px] text-slate-500 block mt-0.5">Marks payment status as Unpaid. If date is &gt;= 5th and no override exists, project pauses automatically.</span>
+                  </div>
+                  <button
+                    disabled={updatingPayment}
+                    onClick={() => handleMarkPaymentUnpaid(selectedPaymentHospital)}
+                    className="bg-slate-200 hover:bg-rose-100 text-slate-700 hover:text-rose-700 font-bold px-3.5 py-2 rounded-lg text-xs transition-colors shrink-0 cursor-pointer border border-slate-300 disabled:opacity-50"
+                  >
+                    Mark Unpaid
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => { setShowPaymentModal(false); setSelectedPaymentHospital(null); }}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer copyright */}
