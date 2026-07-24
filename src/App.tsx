@@ -719,7 +719,7 @@ export default function App() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-400 font-medium">Monthly Fee:</span>
-                  <span className="font-bold text-emerald-400">KSh {(hospitalInfo.monthlyFee || 150000).toLocaleString()}</span>
+                  <span className="font-bold text-emerald-400">KSh {(hospitalInfo.monthlyFee || 1000).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-800">
                   <span className="text-slate-400 font-medium">Current Access Status:</span>

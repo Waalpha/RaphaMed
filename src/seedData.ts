@@ -72,11 +72,11 @@ export async function seedHospitalsAndData() {
           updates.subscription = 'Premium';
           needsMigration = true;
         }
-        if (!data.lastPaymentMonth) {
+        if (!data.lastPaymentMonth || data.monthlyFee !== 1000) {
           updates.lastPaymentMonth = currentMonthStr;
           updates.paymentStatus = 'Paid';
           updates.lastPaymentDate = now.toISOString();
-          updates.monthlyFee = 150000;
+          updates.monthlyFee = 1000;
           updates.paymentOverride = false;
           needsMigration = true;
         }

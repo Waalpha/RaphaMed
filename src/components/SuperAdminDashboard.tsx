@@ -609,23 +609,11 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
 
   const activeSubscriptionRevenue = hospitals
     .filter(h => h.status === 'active')
-    .reduce((sum, h) => {
-      const plan = h.subscription || 'Basic';
-      if (plan === 'Basic') return sum + 499;
-      if (plan === 'Standard') return sum + 999;
-      if (plan === 'Premium') return sum + 1999;
-      return sum;
-    }, 0);
+    .reduce((sum, h) => sum + (h.monthlyFee || 1000), 0);
 
   const suspendedSubscriptionRevenue = hospitals
     .filter(h => h.status === 'suspended')
-    .reduce((sum, h) => {
-      const plan = h.subscription || 'Basic';
-      if (plan === 'Basic') return sum + 499;
-      if (plan === 'Standard') return sum + 999;
-      if (plan === 'Premium') return sum + 1999;
-      return sum;
-    }, 0);
+    .reduce((sum, h) => sum + (h.monthlyFee || 1000), 0);
 
   const totalSubscriptionRevenue = activeSubscriptionRevenue + suspendedSubscriptionRevenue;
 
@@ -633,13 +621,13 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
     {
       name: 'Active',
       'Branches': activeHospitals,
-      'Revenue ($)': activeSubscriptionRevenue,
+      'Revenue (KSh)': activeSubscriptionRevenue,
       color: '#10b981'
     },
     {
       name: 'Suspended',
       'Branches': suspendedHospitals,
-      'Revenue ($)': suspendedSubscriptionRevenue,
+      'Revenue (KSh)': suspendedSubscriptionRevenue,
       color: '#f59e0b'
     }
   ];
@@ -979,7 +967,7 @@ export default function SuperAdminDashboard({ currentUser, onLogout, onBrandingU
             </div>
             <div className="text-left sm:text-right bg-indigo-50 px-3.5 py-1.5 rounded-lg border border-indigo-100">
               <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">Total Monthly ARR</span>
-              <span className="text-sm font-black text-indigo-800">${totalSubscriptionRevenue.toLocaleString()} <span className="text-[10px] font-semibold text-indigo-400">/mo</span></span>
+              <span className="text-sm font-black text-indigo-800">KSh {totalSubscriptionRevenue.toLocaleString()} <span className="text-[10px] font-semibold text-indigo-400">/mo</span></span>
             </div>
           </div>
 

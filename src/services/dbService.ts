@@ -65,7 +65,7 @@ export async function createHospital(hospital: Hospital): Promise<void> {
     paymentStatus: 'Paid',
     lastPaymentMonth: currentMonthStr,
     lastPaymentDate: now.toISOString(),
-    monthlyFee: hospital.subscription === 'Premium' ? 150000 : hospital.subscription === 'Standard' ? 95000 : 50000,
+    monthlyFee: 1000,
     paymentOverride: false,
     ...hospital
   };
